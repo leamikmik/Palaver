@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Palaver</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="./css/style2.css">
+    <link rel="apple-touch-icon" sizes="180x180" href="./images/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="./images/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="./images/favicon-16x16.png">
+    <link rel="manifest" href="./images/site.webmanifest">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
+    <link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/cropper/2.3.4/cropper.min.css'>
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/cropperjs/0.8.1/cropper.min.js'></script>
+</head>
+<body data-bs-theme="dark" class="d-flex">
+    <div id="sidebar" class="rounded">
+        <div style="margin: 1%; color: #b57edc; font-family: 'Lemon';">
+            <a href="https://chat.mikmik.xyz/" style="text-decoration: none; color: inherit; display: flex;">
+                <img src="./images/palaver.png" style="width: 3em; height: 3em; margin: auto 0;"/>
+                <h1 style="margin: auto 0;">Palaver</h1>
+            </a>
+        </div>
+        <div class="d-flex flex-row">
+            <h2 class="flex-fill" style="margin-left: 2.5%;">Rooms</h2>
+            <button class="dropdown-toggle" style="border: none; background: none; margin: auto 5%;" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-plus-circle-fill"></i>
+            </button>
+            <div class="dropdown-menu">
+                <button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#createRoomModal">Create room</button>
+                <button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#joinRoomModal">Join room</button>
+            </div>            
+        </div>
+        <div id="joinedRooms" class="list-group d-flex" style="width: 80%; margin-left: 5%; max-height: 33%;"></div>
+        <hr style="width: 96%; margin: 5% auto;"/>
+        <div class="d-flex">
+            <h2 class="flex-fill" style="margin-left: 2.5%;">Members</h2>
+            <button class="dropdown-toggle" style="border: none; background: none; margin: auto 5%;" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-person-plus-fill"></i>
+            </button>
+            <div class="dropdown-menu">
+                <button class="dropdown-item disabled">Invite by username (OUT OF ORDER)</button>
+                <button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#inviteCodeModal">Invite by code</button>
+            </div>   
+        </div>
+        
+        <div id="joinedUsers" class="list-group" style="width: 80%; margin-left: 5%; max-height: 33%;"></div>
+
+        <div class="card d-flex flex-row" style="background-color: #313b4b; position: absolute; width: 18%; left: 1%; bottom: 1%; height: 3em;">
+            <img id="pfp" class="pfp"/>
+            <h5 class="overflow-hidden flex-fill" style="margin: auto 0;"><b id="userName"></b></h5>
+            <button id="logout" style="border: none; background: none; margin: auto 5%; margin-right: 0;" data-bs-toggle="modal" data-bs-target="#logoutModal">
+                <i class="bi bi-door-closed-fill shown"></i>
+                <i class="bi bi-door-open-fill hidden"></i>
+            </button>
+            <button style="border: none; background: none; margin: auto 5%;" onclick="gotoSettings()"><i class="bi bi-gear-fill"></i></button>
+        </div>
+    </div>
+
+    <div id="chat" style="display: flex; flex-direction: column;">
+        <div style="width: 100%; height: 7%; background-color: #313b4b; display: flex; flex-direction: row;" class="shadow-lg rounded">
+            <h2 id="roomName" class="flex-fill" style="margin: auto 1%;"></h2>
+            <button style="border: none; background: none; margin: auto 1%; height: 3em; width: 3em;"><i class="bi bi-gear-fill" style="font-size: 1.5em;"></i></button>
+        </div>
+        <div id="chatbox" class="list-group list-group-flush" onscroll="scrollToTop()" onclick="focusSend()"></div>
+        <div id="msgInput" class="d-flex input-group">
+            <input id="chatMsg" class="flex-fill form-control" type="text" placeholder="Send a messagge..." onkeypress="enterMsg(event)"> 
+            <button class="btn btn-outline-secondary" onclick="sendMsg()" type="button">Send</button>
+        </div>
+        <button id="scrollToBottom" onclick="scrollToBottom()" class="btn btn-primary" style="position: absolute; right: 3%; bottom: 10%; border-radius: 100%; height: 4em; width: 4em; align-items: center; display: none;"><i class="bi bi-chevron-double-down" style="font-size: 2em;"></i></button>
+    </div>
+    <div id="settings" style="position: absolute; height: 100vh; width: 80%; left: 20%; top: 0; display: none;">
+        <div style="position: absolute; height: 100%; width: 100%; background-color: #15191d; opacity: 0.7;"></div>
+        <div style="position: relative; margin: 0 auto; top: 10%; height: 80%; width: 60%; background-color: #212529; border-radius: 50px;">
+            <div style="height: 10%; width: 100%; background-color: #313b4b; border-radius: 50px;">
+                <button type="button" class="btn-close" onclick="closeSettings()" style="width: 10%; height: 90%; font-size: 1.5em;" aria-label="Close"></button>
+            </div>
+        <button id="changedSettings" class="btn btn-primary" style="position: absolute; bottom: 10%; right: 5%; display: none;" data-bs-toggle="modal" data-bs-target="#confirmSettingsModal"><i class="bi bi-floppy-fill" style="font-size: 2em;"></i></button>
+        <div id="settingsAlt" style="width: 95%; height: 90%; margin: 0 auto; top: 10%;">
+            <div style="width: 100%; height: 10%;">
+            <h1 style="margin-left: 5%; margin-top: 5%;"><b><i>User</i></b></h1>
+        </div>
+        <div style="margin: 5% 20%; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <div class="pfp_cont">
+                <img id="S_pfp" style="width: 300px; height: 300px; border-radius: 15px;"/>
+                <div class="overlay">
+                    <label style="margin: auto; font-size: 3em; cursor: pointer;">
+                        <input type="file" id="pfp_upload" accept="image/*" style="display: none;"/>
+                        <i class="bi bi-cloud-arrow-up-fill"></i>
+                    </label>
+                    <button style="margin: auto; border: none; background: none; font-size: 3em;" onclick="deletePfp()"><i class="bi bi-trash-fill"></i></button>
+                </div>
+            </div>
+            <h2 style="margin: 2% 0;"><b id="settingsUserName"></b></h2>
+            <div class="card d-flex flex-column" style="background-color: #313b4b; width: 90%;">
+                <div style="margin: auto 10%; display: flex;"> 
+                    <span class="flex-fill">Username:</span>
+                    <input disabled type="text" id="S_userName" style="width: 60%;">
+                </div>
+                <div style="margin: auto 10%; display: flex;"> <span class="flex-fill">Color:</span> <b id="S_colorHex" style="margin: 0 4px;"></b><input type="color" id="S_color" onchange="tryColor()"> </div>
+                
+                <!--
+                <div style="margin: auto 10%; display: flex;"> <span class="flex-fill">Email:</span> <input type="text" disabled id="S_email"></input></div>                
+                
+                <div style="margin: auto 10%; display: flex;"> <span class="flex-fill">New password</span> <input type="password"></input></div>
+                <div style="margin: auto 10%; display: flex;"> <span class="flex-fill">Retype new password</span> <input type="password"></input></div>
+                -->
+                </div>
+            </div>
+            <hr style="width: 80%; margin: 3% auto;"/>
+        </div>
+        
+        </div>
+    </div>
+
+    <div class="toast-container" style="position: absolute; bottom: 8%; right: 1%;" id="toast-container"></div>
+
+    <div class="modal fade" id="confirmSettingsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+                <h1 class="modal-title fs-5">Confirm settings</h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" data-bs-target="#confirmSettingsModal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="input-group form-floating">
+                    <input type="password" id="saveSetPass" onkeypress="enterSettings(event)" class="form-control"> 
+                    <label for="createRoomName">Password</label>
+                    <button class="btn btn-outline-secondary" type="button" style="font-size: 1.5em;" onclick="toggleVisibility(this)">
+                        <i class="bi bi-eye-fill"></i>
+                        <i class="bi bi-eye-slash-fill" style="display: none;"></i>
+                    </button>
+                </p>
+                
+                <b>Confirm password before saving settings</b>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-bs-target="#confirmSettingsModal">Close</button>
+                <button type="button" class="btn btn-primary" id="saveSetBtn" onclick="saveSettings()">Save</button>
+            </div>
+          </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="closeSettingsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+                <h1 class="modal-title fs-5">Discard changes?</h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body form-floating">
+                <b><i>Discard unsaved settings?</i></b> 
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary"  data-bs-dismiss="modal" onclick="confirmCloseSettings()">Discard</button>
+            </div>
+          </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="editPfp" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+                <h1 class="modal-title fs-5">Crop profile picture</h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="pfp_crop" style="height: 400px; width: 400px; margin: auto;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal" onclick="savePfp()">Save</button>
+            </div>
+          </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="createRoomModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+                <h1 class="modal-title fs-5">Create room</h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body form-floating">
+                <input type="text" id="createRoomName" onkeypress="enterCreate(event)" class="form-control"> 
+                <label for="createRoomName">Room name</label>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="create()">Create</button>
+            </div>
+          </div>
+        </div>
+    </div>
+    <div class="modal fade" id="joinRoomModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+                <h1 class="modal-title fs-5">Join room</h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body form-floating">
+                <input type="text" id="joinRoomName" onkeypress="enterJoin(event)" class="form-control"> 
+                <label for="joinRoomName">Invite code</label>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="join()">Join</button>
+            </div>
+          </div>
+        </div>
+    </div>
+    <div class="modal fade" id="inviteCodeModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+                <h1 class="modal-title fs-5">Invite user</h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body form-floating">
+                <input type="text" id="inviteCode" style="width: 80%" disabled/> 
+                <button style="border: none; background: none; margin: auto 5%;" onclick="copyInvite()"><i class="bi bi-clipboard-fill"></i></button>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+          </div>
+        </div>
+    </div>
+    <div class="modal fade" id="logoutModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body form-floating">
+                <h3>Do you wish to logout?</h3>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-danger" onclick="logout()">Logout</button>
+            </div>
+          </div>
+        </div>
+    </div>
+    <template id="tempToast">
+        <div class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header">
+                <img class="rounded me-2" style="width: 1.5em; height: 1.5em;"/>
+                <strong class="me-auto overflow-hidden" style="text-overflow: ellipsis; max-width: 50%;"><!--Username--></strong>
+                <small class="text-body-secondary overflow-hidden" style="text-overflow: ellipsis; max-width: 50%;"><!--Room--></small>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body overflow-auto">Body</div>
+        </div>
+    </template>
+    <template id="tempMsg">
+        <div class="d-flex msg list-group-item">
+            <img class="pfp"/>
+            <b>Username</b> 
+            <text class="flex-fill">Msg text</text>
+            <i style="margin-left: auto;">Upload time</i>
+        </div>
+    </template>
+    <template id="tempRoom">
+        <button data-bs-dismiss="offcanvas" class="btn btn-primary list-group-item list-group-item-action">
+            <span class="badge, bg-primary, rounded-pill, float-end">newMsg</span>
+            <b>Name</b>
+        </button>
+    </template>
+    <template id="tempMember">
+        <div class="d-flex list-group-item">
+            <img class="pfp"/>
+            <b style="margin: auto 0;">Username</b> 
+            <div style="background-color: #15191d; width: 100%; height: 100%; position: absolute; left: 0; top: 0; opacity: 0.7; display: none;"></div>
+        </div>
+    </template>
+
+	<script src="./js/main.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+</body>
+</html>

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"> 
+    <style>
+        body{
+            background-color: #212529;
+            color: white;
+        }
+        div{
+            width: 20%;
+        }
+    </style>
+</head>
+<body data-bs-theme="dark" style="display: flex; flex-direction: column; align-items: center;">
+    <div class="toast-container" style="position: absolute; bottom: 8%; right: 1%;" id="toast-container"></div>
+    <script src="./js/login.js"></script>
+    <p><b>Login:</b></p>
+    <div class="form-floating">
+        <input type="text" id="username" class="form-control">
+        <label for="username">Username</label> 
+    </div><br/>
+    <div class="form-floating input-group" style="width: 20%;">
+        <input type="password" id="password" onkeypress="enterLogin(event)" class="form-control"> 
+        <label for="password">Password</label> 
+        <button class="btn btn-outline-secondary" type="button" style="font-size: 1.5em;" onclick="toggleVisibility(this)">
+            <i class="bi bi-eye-fill"></i>
+            <i class="bi bi-eye-slash-fill" style="display: none;"></i>
+        </button>
+    </div><br/>
+    <button id="login_btn" onclick="login()" class="btn btn-primary" style="width: fit-content;">Login</button><br/><br/>
+
+    <p><b>Or register:</b></p>
+    <div class="form-floating">
+        <input type="text" id="usernameReg" class="form-control"> 
+        <label for="usernameReg">Username</label>
+    </div><br/>
+    <div class="form-floating">
+        <input type="email" id="email" class="form-control"> 
+        <label for="email">Email</label>
+    </div><br/>
+    <div class="form-floating input-group" style="width: 20%;">
+        <input type="password" id="passwordReg" class="form-control">
+        <label for="passwordReg">Password</label> 
+        <button class="btn btn-outline-secondary" type="button" style="font-size: 1.5em;" onclick="toggleVisibility(this)">
+            <i class="bi bi-eye-fill"></i>
+            <i class="bi bi-eye-slash-fill" style="display: none;"></i>
+        </button>
+    </div><br/>
+    <div class="form-floating input-group" style="width: 20%;">
+        <input type="password" id="passwordReg2" class="form-control" onkeypress="enterRegister(event)"> 
+        <label for="passwordReg2">Retype password</label>
+        <button class="btn btn-outline-secondary" type="button" style="font-size: 1.5em;" onclick="toggleVisibility(this)">
+            <i class="bi bi-eye-fill"></i>
+            <i class="bi bi-eye-slash-fill" style="display: none;"></i>
+        </button>
+    </div><br/>
+    <button onclick="register()" id="register_btn" class="btn btn-primary" style="width: fit-content;">Register</button>
+
+    <template id="tempToast">
+        <div class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header" style="width: 100%;">
+                <img class="rounded me-2" style="width: 1.5em; height: 1.5em;"/> 
+                <strong class="me-auto overflow-hidden" style="text-overflow: ellipsis; max-width: 50%;"><!--Username--></strong>
+                <small class="text-body-secondary overflow-hidden" style="text-overflow: ellipsis; max-width: 50%;"><!--Room--></small>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body overflow-auto" style="width: 100%;">Body</div>
+        </div>
+    </template>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+</body>
+</html>
