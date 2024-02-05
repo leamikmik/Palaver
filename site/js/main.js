@@ -1,4 +1,9 @@
 const domain="https://chat.mikmik.xyz/api";
+const urlify = (text) => {
+    return text.replaceAll(
+        /\b((?:[a-z][\w-]+:(?:\/{1,3}|[a-z0-9%])|www\d{0,3}[.]|[a-z0-9.-]+[.][a-z]{2,4}\/)(?:(?:[^\s()<>.]+[.]?)+|((?:[^\s()<>]+|(?:([^\s()<>]+)))))+(?:((?:[^\s()<>]+|(?:([^\s()<>]+))))|[^\s`!()[]{};:'".,<>?«»“”‘’]))/gi, 
+        "<a target=_blank href=$1>$1</a>");
+}
 let socket;
 let current_room = "";
 let changedSettings = false;
@@ -6,6 +11,10 @@ let pfpLock = false;
 let settings_proc = false;
 let page = 0;
 let loadingMsgs = false;
+let noMoreMsgs = false;
+let cropper = '';
+let conSettingsModal;
+
 
 function enterMsg(event){
     if(event.key == "Enter") sendMsg();
@@ -26,12 +35,14 @@ function toggleVisibility(btn){
     btn.parentElement.children[0].type = btn.parentElement.children[0].type == "password" ? "text" : "password"; 
 }
 
-function sendMsg(){
-    const text_field = document.getElementById("chatMsg");
-    if(text_field.value!="" && text_field.value.length < 2001 && current_room!="") {
-        socket.send(JSON.stringify({msg: text_field.value, room: current_room, type:"sendMsg"}))
-        text_field.value="";
-    }
+//Settings functions
+
+function gotoRoomSettings(){
+    document.getElementById("roomSettings").style.display="";
+}
+
+function closeRoomSettings(){
+    document.getElementById("roomSettings").style.display = "none";
 }
 
 function gotoSettings(){
@@ -62,6 +73,11 @@ function tryColor(){
     changeSettings();
     document.getElementById("settingsUserName").style.color = document.getElementById("S_color").value;
     document.getElementById("S_colorHex").innerText = document.getElementById("S_color").value;
+}
+
+function tryUsername(){
+    changeSettings();
+    document.getElementById("settingsUserName").innerText = document.getElementById("S_userName").value; 
 }
 
 function changeSettings(){
@@ -121,6 +137,16 @@ function deletePfp(){
     changeSettings();
     document.getElementById("S_pfp").src = "./images/default_user.jpg";
 }
+
+function deleteRoom(){
+
+}
+
+function toggleInput(id){
+    document.getElementById(id).disabled = !document.getElementById(id).disabled;
+    if(!document.getElementById(id).disabled) document.getElementById(id).focus();
+}
+
 
 function logout(){
     fetch(domain+"/auth/logout", {
@@ -197,6 +223,8 @@ function generateRoomButton(room){
     button.addEventListener("click", ()=>{
         socket.send(JSON.stringify({id: room["id"], type:"getRoom"}))
         if(changedSettings) closeSettings();
+        closeRoomSettings();
+        focusSend();
     })
     
     button.id = room["id"];
@@ -208,7 +236,7 @@ function generateMsg(msg){
     if(msg["pfp"]!=null) div.children[0].src = msg["pfp"];
     div.children[1].style.color = msg["color"];
     div.children[1].innerText = msg["newUser"] ? msg["sender"] : msg["sender"]+": ";
-    div.children[2].innerText = msg["newUser"] ? " has joined the room." : msg['msg'];
+    div.children[2].innerHTML = msg["newUser"] ? " has joined the room." : urlify(msg['msg']);
     div.children[3].innerText = new Date(msg["sent_at"]).toLocaleString("sl-SI");
     return div;
 }
@@ -222,13 +250,21 @@ function generateMember(user){
     return div;
 }
 
+function generateSettingsMember(user){
+    let div = document.getElementById("tempSettingsMember").content.cloneNode(true).children[0];
+    if(user["pfp"]!=null) div.children[0].src = user["pfp"];
+    div.children[1].style.color = user["color"];
+    div.children[1].innerText = user["username"];
+    return div;
+}
+
 function scrollToTop(){
     const chatbox = document.getElementById("chatbox");
-    if(chatbox.scrollTop<50 && !loadingMsgs){
+    if(chatbox.scrollTop<50 && !loadingMsgs && !noMoreMsgs){
         page++;
         loadingMsgs = true;
         socket.send(JSON.stringify({type: "getMoreRoom", times: page, id: current_room}));
-    }
+    }else if(loadingMsgs) chatbox.scrollTop = 60;
     if(!(chatbox.scrollHeight - chatbox.clientHeight <= chatbox.scrollTop + 1)){
         document.getElementById("scrollToBottom").style.display = "";
     }else document.getElementById("scrollToBottom").style.display = "none";
@@ -236,17 +272,28 @@ function scrollToTop(){
 
 function scrollToBottom(){
     const chatbox = document.getElementById("chatbox");
+    chatbox.style.scrollBehavior = "smooth";
     chatbox.scrollTop = chatbox.scrollHeight - chatbox.clientHeight
     document.getElementById("scrollToBottom").style.display = "none";
+    chatbox.style.scrollBehavior = "auto";
 }
 
 function focusSend(){
     document.getElementById("chatMsg").focus();
 }
 
+function sendMsg(){
+    const text_field = document.getElementById("chatMsg");
+    if(text_field.value.trim()!="" && text_field.value.length < 2001 && current_room!="") {
+        socket.send(JSON.stringify({msg: text_field.value.trim(), room: current_room, type:"sendMsg"}))
+        text_field.value="";
+    }
+}
+
 function connectSocket(){
     const joinedRooms = document.getElementById("joinedRooms");
     const joinedUsers = document.getElementById("joinedUsers")
+    const RS_joinedUsers = document.getElementById("RS_joinedUsers");
     const chatbox = document.getElementById("chatbox");
     const inviteCode = document.getElementById("inviteCode");
     socket = new WebSocket("wss://chat.mikmik.xyz/api/ws/");
@@ -263,14 +310,6 @@ function connectSocket(){
         if(parsedData["ping"]=="PING") socket.send(JSON.stringify({ping: "PONG"}));
         else switch(parsedData["type"]){
             case "userName": 
-                /*document.getElementById("userName").innerHtml = "You are: <a style='text-color: "+parsedData["color"]+"; '>" + parsedData["username"]+"</a>"; 
-                const color = document.getElementById("color");
-                const colorDemo = document.getElementById("colorDemo");
-                color.value = parsedData["color"];
-                colorDemo.innerText = parsedData["username"];
-                colorDemo.style.color = parsedData["color"];
-                curColor=parsedData["color"];
-                */
                 document.getElementById("S_userName").value = parsedData["username"];
                 document.getElementById("S_color").value = parsedData["color"];
                 document.getElementById("S_colorHex").innerText = parsedData["color"];
@@ -301,7 +340,8 @@ function connectSocket(){
             case "getRoom":
                 while(chatbox.firstChild) chatbox.removeChild(chatbox.lastChild);
                 while(joinedUsers.firstChild) joinedUsers.removeChild(joinedUsers.lastChild);
-                //document.getElementById("deleteRoom").style.display = parsedData["owner"]==true ? "" : "none";
+                while(RS_joinedUsers.firstChild) RS_joinedUsers.removeChild(joinedUsers.lastChild);
+                document.getElementById("roomSettingsBtn").style.display = parsedData["owner"] ? "" : "none";
                 document.getElementById("roomName").innerText=parsedData["roomName"];
                 document.getElementById(parsedData["room"]).children[0].style.display="none";
                 document.getElementById(parsedData["room"]).children[0].innerText = 0;
@@ -309,17 +349,27 @@ function connectSocket(){
                 current_room = parsedData["room"];
                 page = 0;
                 loadingMsgs = false;
+                noMoreMsgs = false;
                 parsedData["messages"].forEach((msg)=>{
                     chatbox.prepend(generateMsg(msg));
                 });
                 parsedData["members"].forEach((user)=>{
                     joinedUsers.append(generateMember(user));
                 });
+
+                if(parsedData["owner"]){
+                    parsedData["members"].forEach((user)=>{
+                        RS_joinedUsers.append(generateSettingsMember(user));
+                    });
+                    document.getElementById("roomSetName").value = parsedData["roomName"];
+                }
+
                 chatbox.scrollTop = chatbox.scrollHeight - chatbox.clientHeight;
                 break;
             case "getMoreRoom":
                 loadingMsgs = false;
                 let temp = chatbox.scrollHeight;
+                if(parsedData["messages"].length<50) noMoreMsgs = true;
                 parsedData["messages"].forEach((msg)=>{
                     chatbox.prepend(generateMsg(msg));
                 });
@@ -363,9 +413,6 @@ document.addEventListener("DOMContentLoaded", ()=>{
     connectSocket();
     conSettingsModal = new bootstrap.Modal('#editPfp', {});
 })
-
-let cropper = '';
-let conSettingsModal;
 
 document.getElementById("pfp_upload").addEventListener('change', e=>{
     if(e.target.files.length){

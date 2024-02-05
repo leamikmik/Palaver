@@ -26,7 +26,7 @@
         </div>
         <div class="d-flex flex-row">
             <h2 class="flex-fill" style="margin-left: 2.5%;">Rooms</h2>
-            <button class="dropdown-toggle" style="border: none; background: none; margin: auto 5%;" data-bs-toggle="dropdown" aria-expanded="false">
+            <button class="dropdown-toggle invis_btn" style="margin: auto 5%;" data-bs-toggle="dropdown" aria-expanded="false">
                 <i class="bi bi-plus-circle-fill"></i>
             </button>
             <div class="dropdown-menu">
@@ -38,7 +38,7 @@
         <hr style="width: 96%; margin: 5% auto;"/>
         <div class="d-flex">
             <h2 class="flex-fill" style="margin-left: 2.5%;">Members</h2>
-            <button class="dropdown-toggle" style="border: none; background: none; margin: auto 5%;" data-bs-toggle="dropdown" aria-expanded="false">
+            <button class="dropdown-toggle invis_btn" style="margin: auto 5%;" data-bs-toggle="dropdown" aria-expanded="false">
                 <i class="bi bi-person-plus-fill"></i>
             </button>
             <div class="dropdown-menu">
@@ -52,20 +52,20 @@
         <div class="card d-flex flex-row" style="background-color: #313b4b; position: absolute; width: 18%; left: 1%; bottom: 1%; height: 3em;">
             <img id="pfp" class="pfp"/>
             <h5 class="overflow-hidden flex-fill" style="margin: auto 0;"><b id="userName"></b></h5>
-            <button id="logout" style="border: none; background: none; margin: auto 5%; margin-right: 0;" data-bs-toggle="modal" data-bs-target="#logoutModal">
+            <button id="logout" class="invis_btn" style="margin: auto 5%; margin-right: 0;" data-bs-toggle="modal" data-bs-target="#logoutModal">
                 <i class="bi bi-door-closed-fill shown"></i>
                 <i class="bi bi-door-open-fill hidden"></i>
             </button>
-            <button style="border: none; background: none; margin: auto 5%;" onclick="gotoSettings()"><i class="bi bi-gear-fill"></i></button>
+            <button class="invis_btn" style="margin: auto 5%;" onclick="gotoSettings()"><i class="bi bi-gear-fill"></i></button>
         </div>
     </div>
 
-    <div id="chat" style="display: flex; flex-direction: column;">
+    <div id="chat" style="display: flex; flex-direction: column;" onkeydown="focusSend()">
         <div style="width: 100%; height: 7%; background-color: #313b4b; display: flex; flex-direction: row;" class="shadow-lg rounded">
             <h2 id="roomName" class="flex-fill" style="margin: auto 1%;"></h2>
-            <button style="border: none; background: none; margin: auto 1%; height: 3em; width: 3em;"><i class="bi bi-gear-fill" style="font-size: 1.5em;"></i></button>
+            <button id="roomSettingsBtn" class="invis_btn" style="margin: auto 1%; height: 3em; width: 3em; display: none;" onclick="gotoRoomSettings()"><i class="bi bi-gear-fill" style="font-size: 1.5em;"></i></button>
         </div>
-        <div id="chatbox" class="list-group list-group-flush" onscroll="scrollToTop()" onclick="focusSend()"></div>
+        <div id="chatbox" class="list-group list-group-flush" onscroll="scrollToTop()"></div>
         <div id="msgInput" class="d-flex input-group">
             <input id="chatMsg" class="flex-fill form-control" type="text" placeholder="Send a messagge..." onkeypress="enterMsg(event)"> 
             <button class="btn btn-outline-secondary" onclick="sendMsg()" type="button">Send</button>
@@ -78,45 +78,105 @@
             <div style="height: 10%; width: 100%; background-color: #313b4b; border-radius: 50px;">
                 <button type="button" class="btn-close" onclick="closeSettings()" style="width: 10%; height: 90%; font-size: 1.5em;" aria-label="Close"></button>
             </div>
-        <button id="changedSettings" class="btn btn-primary" style="position: absolute; bottom: 10%; right: 5%; display: none;" data-bs-toggle="modal" data-bs-target="#confirmSettingsModal"><i class="bi bi-floppy-fill" style="font-size: 2em;"></i></button>
-        <div id="settingsAlt" style="width: 95%; height: 90%; margin: 0 auto; top: 10%;">
-            <div style="width: 100%; height: 10%;">
-            <h1 style="margin-left: 5%; margin-top: 5%;"><b><i>User</i></b></h1>
-        </div>
-        <div style="margin: 5% 20%; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-            <div class="pfp_cont">
-                <img id="S_pfp" style="width: 300px; height: 300px; border-radius: 15px;"/>
-                <div class="overlay">
-                    <label style="margin: auto; font-size: 3em; cursor: pointer;">
-                        <input type="file" id="pfp_upload" accept="image/*" style="display: none;"/>
-                        <i class="bi bi-cloud-arrow-up-fill"></i>
-                    </label>
-                    <button style="margin: auto; border: none; background: none; font-size: 3em;" onclick="deletePfp()"><i class="bi bi-trash-fill"></i></button>
+            <button id="changedSettings" class="btn btn-primary" style="position: absolute; bottom: 10%; right: 5%; display: none;" data-bs-toggle="modal" data-bs-target="#confirmSettingsModal"><i class="bi bi-floppy-fill" style="font-size: 2em;"></i></button>
+            <div id="settingsAlt" style="width: 95%; height: 90%; margin: 0 auto; top: 10%;">
+                <div style="width: 100%; height: 10%;">
+                    <h1 style="margin-left: 5%; margin-top: 5%;"><b><i>User</i></b></h1>
                 </div>
+                <div style="margin: 5% 20%; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                    <div class="pfp_cont">
+                        <img id="S_pfp" style="width: 300px; height: 300px; border-radius: 15px;"/>
+                        <div class="overlay">
+                            <label style="margin: auto; font-size: 3em; cursor: pointer;">
+                                <input type="file" id="pfp_upload" accept="image/*" style="display: none;"/>
+                                <i class="bi bi-cloud-arrow-up-fill"></i>
+                            </label>
+                            <button class="invis_btn" style="margin: auto; font-size: 3em;" onclick="deletePfp()"><i class="bi bi-trash-fill"></i></button>
+                        </div>
+                    </div>
+                    <h2 style="margin: 2% 0;"><b id="settingsUserName"></b></h2>
+                    <div class="card d-flex flex-column" style="background-color: #313b4b; width: 90%; padding: 10px;">
+                        <div style="margin: auto 10%; display: flex;"> 
+                            <span class="flex-fill" style="margin: auto 0; margin-right: 5%;">Username:</span>
+                            <input type="text" id="S_userName" class="form-control" onchange="tryUsername()"/>
+                        </div>
+                        <div style="margin: auto 10%; display: flex;"> 
+                            <span class="flex-fill">Color:</span> 
+                            <b id="S_colorHex" style="margin: auto 4px;"></b>
+                            <input type="color" id="S_color" onchange="tryColor()"> 
+                        </div>
+
+                        <!--
+                        <div style="margin: auto 10%; display: flex;"> <span class="flex-fill">Email:</span> <input type="text" disabled id="S_email"></input></div>                
+                        
+                        <div style="margin: auto 10%; display: flex;"> <span class="flex-fill">New password</span> <input type="password"></input></div>
+                        <div style="margin: auto 10%; display: flex;"> <span class="flex-fill">Retype new password</span> <input type="password"></input></div>
+                        -->
+                    </div>
+                </div>
+                <hr style="width: 80%; margin: 3% auto;"/>
             </div>
-            <h2 style="margin: 2% 0;"><b id="settingsUserName"></b></h2>
-            <div class="card d-flex flex-column" style="background-color: #313b4b; width: 90%;">
-                <div style="margin: auto 10%; display: flex;"> 
-                    <span class="flex-fill">Username:</span>
-                    <input disabled type="text" id="S_userName" style="width: 60%;">
-                </div>
-                <div style="margin: auto 10%; display: flex;"> <span class="flex-fill">Color:</span> <b id="S_colorHex" style="margin: 0 4px;"></b><input type="color" id="S_color" onchange="tryColor()"> </div>
-                
-                <!--
-                <div style="margin: auto 10%; display: flex;"> <span class="flex-fill">Email:</span> <input type="text" disabled id="S_email"></input></div>                
-                
-                <div style="margin: auto 10%; display: flex;"> <span class="flex-fill">New password</span> <input type="password"></input></div>
-                <div style="margin: auto 10%; display: flex;"> <span class="flex-fill">Retype new password</span> <input type="password"></input></div>
-                -->
-                </div>
-            </div>
-            <hr style="width: 80%; margin: 3% auto;"/>
         </div>
-        
+    </div>
+
+    <div id="roomSettings" style="position: absolute; height: 100vh; width: 80%; left: 20%; top: 0; display: none;">
+        <div style="position: absolute; height: 100%; width: 100%; background-color: #15191d; opacity: 0.7;"></div>
+        <div style="position: relative; margin: 0 auto; top: 10%; height: 80%; width: 60%; background-color: #212529; border-radius: 50px;">
+            <div style="height: 10%; width: 100%; background-color: #313b4b; border-radius: 50px;">
+                <button type="button" class="btn-close" onclick="closeRoomSettings()" style="width: 10%; height: 90%; font-size: 1.5em;" aria-label="Close"></button>
+            </div>
+            <button id="roomChangedSettings" class="btn btn-primary" style="position: absolute; bottom: 10%; right: 5%; display: none;" data-bs-toggle="modal" data-bs-target="#confirmSettingsModal"><i class="bi bi-floppy-fill" style="font-size: 2em;"></i></button>
+            <div id="roomSettingsAlt" style="width: 95%; height: 90%; margin: 0 auto; top: 10%;">
+                <div style="width: 100%; height: 10%;">
+                    <h1 style="margin-left: 5%; margin-top: 5%;"><b><i>Room</i></b></h1>
+                </div>
+                <div style="margin: 5% 20%; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                    <input id="roomSetName" disabled type="text" style="width: 100%; font-size: 2em; text-align: center;"/>
+                    <div style="font-size: 2.5em; justify-content: space-evenly; display: flex; width: 100%; margin-top: 5%;">
+                        <button class="invis_btn" onclick="toggleInput('roomSetName')"><i class="bi bi-pencil-square"></i></button>
+                        <button class="invis_btn" data-bs-toggle="modal" data-bs-target="#deleteRoomModal"><i class="bi bi-trash3-fill"></i></button>
+                    </div>
+                </div>
+                <hr style="width: 80%; margin: 3% auto;"/>
+                <div style="width: 100%; height: 10%;">
+                    <h1 style="margin-left: 5%; margin-top: 5%;"><b><i>Users</i></b></h1>
+                </div>
+                <div style="margin-top: 5%; display: flex; flex-direction: column; align-items: center; max-height: 50%;">
+                    <div id="RS_joinedUsers" class="list-group" style="width: 75%;"></div>
+                </div>
+                <hr style="width: 80%; margin: 3% auto;"/>
+            </div>
         </div>
     </div>
 
     <div class="toast-container" style="position: absolute; bottom: 8%; right: 1%;" id="toast-container"></div>
+
+    <div class="modal fade" id="deleteRoomModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title fs-5">Delete room</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" data-bs-target="#deleteRoomModal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <h1>Warning: This will permanently delete the room and its contents</h1>
+                <p class="input-group form-floating">
+                    <input name="delRoomPas" type="password" id="delRoomPas" onkeypress="enterSettings(event)" class="form-control"> 
+                    <label for="delRoomPas">Password</label>
+                    <button class="btn btn-outline-secondary" type="button" style="font-size: 1.5em;" onclick="toggleVisibility(this)">
+                        <i class="bi bi-eye-fill"></i>
+                        <i class="bi bi-eye-slash-fill" style="display: none;"></i>
+                    </button>
+                </p>
+                <b>Input password to confirm</b>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-bs-target="#eleteRoomModal">Close</button>
+                <button type="button" class="btn btn-danger" id="saveSetBtn" onclick="deleteRoom()">Delete</button>
+            </div>
+          </div>
+        </div>
+    </div>
 
     <div class="modal fade" id="confirmSettingsModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
@@ -128,7 +188,7 @@
             <div class="modal-body">
                 <p class="input-group form-floating">
                     <input type="password" id="saveSetPass" onkeypress="enterSettings(event)" class="form-control"> 
-                    <label for="createRoomName">Password</label>
+                    <label for="saveSetPass">Password</label>
                     <button class="btn btn-outline-secondary" type="button" style="font-size: 1.5em;" onclick="toggleVisibility(this)">
                         <i class="bi bi-eye-fill"></i>
                         <i class="bi bi-eye-slash-fill" style="display: none;"></i>
@@ -226,7 +286,7 @@
             </div>
             <div class="modal-body form-floating">
                 <input type="text" id="inviteCode" style="width: 80%" disabled/> 
-                <button style="border: none; background: none; margin: auto 5%;" onclick="copyInvite()"><i class="bi bi-clipboard-fill"></i></button>
+                <button class="invis_btn" style="margin: auto 5%;" onclick="copyInvite()"><i class="bi bi-clipboard-fill"></i></button>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -265,7 +325,7 @@
         <div class="d-flex msg list-group-item">
             <img class="pfp"/>
             <b>Username</b> 
-            <text class="flex-fill">Msg text</text>
+            <text class="flex-fill"></text>
             <i style="margin-left: auto;">Upload time</i>
         </div>
     </template>
@@ -278,8 +338,22 @@
     <template id="tempMember">
         <div class="d-flex list-group-item">
             <img class="pfp"/>
-            <b style="margin: auto 0;">Username</b> 
+            <b style="margin: auto 0; text-overflow: ellipsis; overflow: hidden;"">Username</b> 
             <div style="background-color: #15191d; width: 100%; height: 100%; position: absolute; left: 0; top: 0; opacity: 0.7; display: none;"></div>
+        </div>
+    </template>
+    <template id="tempSettingsMember">
+        <div class="d-flex list-group-item">
+            <img class="pfp"/>
+            <b style="margin: auto 0; max-width: 70%; text-overflow: ellipsis; overflow: hidden;">Username</b> 
+            <button class="dropdown-toggle invis_btn dropend" style="position: absolute; top: 30%; right: 2%;" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-pencil-square"></i>
+            </button>
+            <div class="dropdown-menu">
+                <button class="dropdown-item" data-bs-toggle="modal">Kick</button>
+                <button class="dropdown-item" data-bs-toggle="modal">Ban</button>
+                <button class="dropdown-item" data-bs-toggle="modal">Make owner</button>
+            </div>   
         </div>
     </template>
 
