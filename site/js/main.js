@@ -1,9 +1,4 @@
 const domain="https://chat.mikmik.xyz/api";
-const urlify = (text) => {
-    return text.replaceAll(
-        /\b((?:[a-z][\w-]+:(?:\/{1,3}|[a-z0-9%])|www\d{0,3}[.]|[a-z0-9.-]+[.][a-z]{2,4}\/)(?:(?:[^\s()<>.]+[.]?)+|((?:[^\s()<>]+|(?:([^\s()<>]+)))))+(?:((?:[^\s()<>]+|(?:([^\s()<>]+))))|[^\s`!()[]{};:'".,<>?«»“”‘’]))/gi, 
-        "<a target=_blank href=$1>$1</a>");
-}
 let socket;
 let current_room = "";
 let changedSettings = false;
@@ -14,7 +9,35 @@ let loadingMsgs = false;
 let noMoreMsgs = false;
 let cropper = '';
 let conSettingsModal;
+  
+function onlyUnique(value, index, array) {
+    return array.indexOf(value) === index;
+}
 
+function scrollBottomImg(el){
+    const chatbox = document.getElementById("chatbox");
+    const isScrolledToBottom = chatbox.scrollHeight - chatbox.clientHeight <= chatbox.scrollTop + 1;
+    if (isScrolledToBottom){
+        chatbox.scrollTop = chatbox.scrollHeight - chatbox.clientHeight;
+    }
+}
+
+function urlify(text, el){
+    let temp = text.match(/\b((?:[a-z][\w-]+:(?:\/{1,3}|[a-z0-9%])|www\d{0,3}[.]|[a-z0-9.-]+[.][a-z]{2,4}\/)(?:(?:[^\s()<>.]+[.]?)+|((?:[^\s()<>]+|(?:([^\s()<>]+)))))+(?:((?:[^\s()<>]+|(?:([^\s()<>]+))))|[^\s`!()[]{};:'".,<>?«»“”‘’]))/gi)
+    if(temp) for(let url of temp.filter(onlyUnique))
+        fetch(domain+"/linkType", {
+            method: "POST",
+            body: JSON.stringify({url: url}),
+            headers: {
+                "Content-type": "application/json; charset=UTF-8",
+            },
+            credentials: 'include'
+        }).then(res=>res.json()).then(
+            data=>{
+                el.innerHTML = text.replaceAll(url, data["parsed"]);
+            }
+        );
+}
 
 function enterMsg(event){
     if(event.key == "Enter") sendMsg();
@@ -236,8 +259,9 @@ function generateMsg(msg){
     if(msg["pfp"]!=null) div.children[0].src = msg["pfp"];
     div.children[1].style.color = msg["color"];
     div.children[1].innerText = msg["newUser"] ? msg["sender"] : msg["sender"]+": ";
-    div.children[2].innerHTML = msg["newUser"] ? " has joined the room." : urlify(msg['msg']);
+    div.children[2].innerHTML = msg["newUser"] ? " has joined the room." : msg['msg'];
     div.children[3].innerText = new Date(msg["sent_at"]).toLocaleString("sl-SI");
+    urlify(div.children[2].innerHTML, div.children[2])
     return div;
 }
 
@@ -340,7 +364,7 @@ function connectSocket(){
             case "getRoom":
                 while(chatbox.firstChild) chatbox.removeChild(chatbox.lastChild);
                 while(joinedUsers.firstChild) joinedUsers.removeChild(joinedUsers.lastChild);
-                while(RS_joinedUsers.firstChild) RS_joinedUsers.removeChild(joinedUsers.lastChild);
+                while(RS_joinedUsers.firstChild) RS_joinedUsers.removeChild(RS_joinedUsers.lastChild);
                 document.getElementById("roomSettingsBtn").style.display = parsedData["owner"] ? "" : "none";
                 document.getElementById("roomName").innerText=parsedData["roomName"];
                 document.getElementById(parsedData["room"]).children[0].style.display="none";

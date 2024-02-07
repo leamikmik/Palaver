@@ -36,7 +36,7 @@ let corsOptionsDelegate = function (req, callback) {
 }
 const dir = __dirname+'/site';
 app.use(cookieParser(process.env.CH_COOKIE_SECRET));
-app.use(express.json({limit: '50mb'}));
+app.use(express.json({limit: '10mb'}));
 app.use(cors(corsOptionsDelegate));
 app.use(express.static(dir));
 
@@ -138,10 +138,11 @@ app.ws('/api/ws',(ws, req)=>{
                 case 'TokenExpiredError': ws.send(JSON.stringify({errorMessage: "Expired access token", statusCode: 401})); break;
                 case 'JsonWebTokenError': ws.send(JSON.stringify({errorMessage: "Expired access token", statusCode: 401})); break;
                 default: console.log(err); break;
-            } else switch(parsedData['type']){
+            }else switch(parsedData['type']){
                 case "refreshUsers":
                     let temp = {members: [], type: "freshUsers"};
-                    db.query("Select pfp, username, color, active from User u join RoomUser ru on ru.user_id=u.user_id where room_id = ? order by active desc, lower(username)", [parsedData['id']], (err, db_res2)=>{
+                    db.query("Select pfp, username, color, active from User u join RoomUser ru on ru.user_id=u.user_id where room_id = ? order by active desc, lower(username)", 
+                    [parsedData['id']], (err, db_res2)=>{
                         if(err) console.log(err);
                         else{
                             for(let i = 0; i<db_res2.length; i++) temp["members"][i] = db_res2[i];
@@ -170,8 +171,11 @@ app.ws('/api/ws',(ws, req)=>{
                                 let temp = {messages:[], members: [], room: parsedData['id'], roomName: db_res2[0]["room_name"], inviteCode: db_res2[0]["inviteCode"], owner: false, type: "getRoom"}
                                 db.query("Select * from Room where owner = ? and room_id = ?", [res.id, parsedData['id']], (err, temp1)=>{
                                 if(err) console.log(err);
-                                else if(temp1.length!=0) temp['owner'] = true;
-                                for(let i = 0; i<db_res.length; i++) temp['messages'][i] = db_res[i]["msg"] == null ? {newUser: true, sent_at: db_res[i]["sent_at"], sender: db_res[i]["sender"], color: db_res[i]["color"], pfp: db_res[i]["pfp"]} : db_res[i];
+                                else if(temp1.length!=0) {temp['owner'] = true}
+                                for(let i = 0; i<db_res.length; i++){
+                                    temp['messages'][i] = db_res[i]["msg"] == null ? {newUser: true, sent_at: db_res[i]["sent_at"], sender: db_res[i]["sender"], color: db_res[i]["color"], pfp: db_res[i]["pfp"]} : db_res[i];
+                                    temp['messages'][i]["msg"] = db_res[i]["msg"] != null ? temp['messages'][i]["msg"].replaceAll("<", "&#60").replaceAll(">", "&#62") : temp['messages'][i]["msg"];
+                                }
                                 db.query("Select pfp, username, color, active from User u join RoomUser ru on ru.user_id=u.user_id where room_id = ? order by active desc, lower(username)", [parsedData['id']], (err, db_res2)=>{
                                     if(err) console.log(err);
                                     else{
@@ -193,7 +197,10 @@ app.ws('/api/ws',(ws, req)=>{
                         if(err) console.log(err);
                         else{
                             let temp = {messages:[], room: parsedData['id'], type: "getMoreRoom"};
-                            for(let i = 0; i<db_res.length; i++) temp['messages'][i] = db_res[i];
+                            for(let i = 0; i<db_res.length; i++){
+                                temp['messages'][i] = db_res[i]["msg"] == null ? {newUser: true, sent_at: db_res[i]["sent_at"], sender: db_res[i]["sender"], color: db_res[i]["color"], pfp: db_res[i]["pfp"]} : db_res[i];
+                                temp['messages'][i]["msg"] = db_res[i]["msg"] != null ? temp['messages'][i]["msg"].replaceAll("<", "&#60").replaceAll(">", "&#62") : temp['messages'][i]["msg"];
+                            }
                             ws.send(JSON.stringify(temp));
                         }
                     })
@@ -204,7 +211,7 @@ app.ws('/api/ws',(ws, req)=>{
                     db.query("Select u.username as name, u.color, u.pfp, r.room_name as rName From RoomUser ru Join User u on ru.user_id=u.user_id Join Room r on ru.room_id=r.room_id Where ru.room_id = ? and ru.user_id = ?", [parsedData['room'], res.id], (err, db_res)=>{
                         if(err) console.log(err);
                         else if(db_res.length>0){ //console.log(db_res)
-                            PubSub.publish(parsedData['room'], JSON.stringify({msg: parsedData['msg'], sender: db_res[0]['name'], pfp: db_res[0]['pfp'], color: db_res[0]["color"] , room: parsedData['room'], roomName: db_res[0]["rName"], sent_at: Date(Date.now()), type: "newMsg"})) //io.emit('event', "hii")
+                            PubSub.publish(parsedData['room'], JSON.stringify({msg: parsedData['msg'].replaceAll("<", "&#60").replaceAll(">", "&#62"), sender: db_res[0]['name'], pfp: db_res[0]['pfp'], color: db_res[0]["color"] , room: parsedData['room'], roomName: db_res[0]["rName"], sent_at: Date(Date.now()), type: "newMsg"})) //io.emit('event', "hii")
                             db.query("Insert into Message (room_id, sender_id, message_text) Value (?, ?, ?)",
                             [parsedData['room'], res.id, parsedData['msg']], (err)=>{
                                 if(err) console.log(err);
@@ -309,6 +316,28 @@ app.ws('/api/ws',(ws, req)=>{
         
     })
 });
+
+app.post("/api/linkType", (req, res)=>{
+    jwt.verify(req.signedCookies['accessToken'], jwtAccSecret, (err, res_id)=>{
+        if(err) switch(err['name']){
+            case 'TokenExpiredError': ws.send(JSON.stringify({errorMessage: "Expired access token", statusCode: 401})); break;
+            case 'JsonWebTokenError': ws.send(JSON.stringify({errorMessage: "Expired access token", statusCode: 401})); break;
+            default: console.log(err); break;
+        }else{
+            fetch(req.body["url"], {method:'HEAD'}).then(
+                res_url=>{
+                    switch(res_url.headers.get("Content-type").split("/")[0]){
+                        case "audio": res.json({parsed: "<br/><audio controls src="+req.body["url"]+" /><br/>"}); break;
+                        case "video": res.json({parsed: "<br/><video style='max-width: 80%; max-height: 100%' controls><source onload=\"scrollBottomImg(this)\" src="+req.body["url"]+"></video><br/>"}); break;
+                        case "image": res.json({parsed: "<br/><img onload=\"scrollBottomImg(this)\" style='max-width: 80%; max-height: 100%' src="+req.body["url"]+" /><br/>"}); break;
+                        default: {res.json({parsed: "<a href="+req.body["url"]+">"+req.body["url"]+"</a>"})}
+                    }
+                },
+                err=>{if(err) res.json({parsed: "<a href="+req.body["url"]+">"+req.body["url"]+"</a>"})}
+            )
+        }
+    })
+})
 
 app.post("/api/setSettings", (req, res)=>{
     jwt.verify(req.signedCookies['accessToken'], jwtAccSecret, (err, result)=>{
