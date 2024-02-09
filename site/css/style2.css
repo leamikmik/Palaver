@@ -51,7 +51,7 @@ html, body {
     position: relative;
     flex: 1;
 }
-#joinedUsers, #joinedRooms, #settingsAlt, #roomSettingsAlt, #RS_joinedUsers{
+.scrollOverflow, #joinedUsers, #joinedRooms, #settingsAlt, #roomSettingsAlt, #RS_joinedUsers{
     display: flex;
     flex-direction: column;
     overflow-x: hidden;

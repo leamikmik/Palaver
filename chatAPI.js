@@ -10,6 +10,7 @@ const express = require('express');
 const app = express();
 const server = require('http').createServer(app);
 const expressWs = require('express-ws')(app, server);
+const {formidable} = require('formidable');
 //Generating access tokens + hash
 const jwt = require('jsonwebtoken');
 const jwtAccSecret = process.env.CH_ACCESS_TOKEN_SECRET; 
@@ -36,7 +37,7 @@ let corsOptionsDelegate = function (req, callback) {
 }
 const dir = __dirname+'/site';
 app.use(cookieParser(process.env.CH_COOKIE_SECRET));
-app.use(express.json({limit: '10mb'}));
+app.use(express.json({limit: '20mb'}));
 app.use(cors(corsOptionsDelegate));
 app.use(express.static(dir));
 
@@ -317,19 +318,63 @@ app.ws('/api/ws',(ws, req)=>{
     })
 });
 
+app.post("/api/upload", (req, res)=>{
+    jwt.verify(req.signedCookies['accessToken'], jwtAccSecret, (err, res_id)=>{
+        if(err) switch(err['name']){
+            case 'TokenExpiredError': res.status(401).send("Expired access token"); break;
+            case 'JsonWebTokenError': res.status(401).send("Expired access token"); break;
+            default: console.log(err); break;
+        }else{
+            let form = formidable({});
+            let uploadsFolder = "./site/data/uploads/"
+            form.parse(req, (err, fields, files)=>{
+                if(err) console.log(err);
+                else if(files['file'][0]['size']<10*1000*1000){
+                    db.query("Select * from RoomUser where user_id = ? and room_id = ?", [res_id.id, fields['room'][0]], (err, db_res)=>{
+                        if(err) console.log(err);
+                        else if(db_res.length!=0){
+                            if(!fs.existsSync(path.join(uploadsFolder, fields['room'][0]))) fs.mkdirSync(path.join(uploadsFolder, fields['room'][0]));
+                            uploadsFolder = path.join(uploadsFolder, fields['room'][0]);
+                            if(!fs.existsSync(path.join(uploadsFolder, res_id.id))) fs.mkdirSync(path.join(uploadsFolder, res_id.id));
+                            uploadsFolder = path.join(uploadsFolder, res_id.id);
+                            if(!fs.existsSync(path.join(uploadsFolder, files['file'][0]['originalFilename']))){
+                                fs.renameSync(files['file'][0]['filepath'], path.join(uploadsFolder, files['file'][0]['originalFilename']));
+                                res.status(200).json({link: "https://chat.mikmik.xyz/data/uploads/"+fields['room'][0]+"/"+res_id.id+"/"+files['file'][0]['originalFilename']})
+                            }
+                            else{
+                                let fileName = files['file'][0]['originalFilename'].split(".")[0];
+                                let extention = files['file'][0]['originalFilename'].split(".");
+                                if(files['file'][0]['originalFilename'].split(".").length>1){
+                                    extention.shift();
+                                    extention = "."+extention.join(".")
+                                }else extention = "";
+                                let i = 1;
+                                while(fs.existsSync(path.join(uploadsFolder, fileName+"_"+i+extention)))i++;
+                                fs.renameSync(files['file'][0]['filepath'], path.join(uploadsFolder, fileName+"_"+i+extention));
+                                res.status(200).json({link: "https://chat.mikmik.xyz/data/uploads/"+fields['room'][0]+"/"+res_id.id+"/"+fileName+"_"+i+extention})
+                            }
+                        }
+                    })
+                }
+                else res.status(413).send();
+            })
+        }
+    });
+})
+
 app.post("/api/linkType", (req, res)=>{
     jwt.verify(req.signedCookies['accessToken'], jwtAccSecret, (err, res_id)=>{
         if(err) switch(err['name']){
-            case 'TokenExpiredError': ws.send(JSON.stringify({errorMessage: "Expired access token", statusCode: 401})); break;
-            case 'JsonWebTokenError': ws.send(JSON.stringify({errorMessage: "Expired access token", statusCode: 401})); break;
+            case 'TokenExpiredError': res.status(401).send("Expired access token"); break;
+            case 'JsonWebTokenError': res.status(401).send("Expired access token"); break;
             default: console.log(err); break;
         }else{
             fetch(req.body["url"], {method:'HEAD'}).then(
                 res_url=>{
                     switch(res_url.headers.get("Content-type").split("/")[0]){
                         case "audio": res.json({parsed: "<br/><audio controls src="+req.body["url"]+" /><br/>"}); break;
-                        case "video": res.json({parsed: "<br/><video style='max-width: 80%; max-height: 100%' controls><source onload=\"scrollBottomImg(this)\" src="+req.body["url"]+"></video><br/>"}); break;
-                        case "image": res.json({parsed: "<br/><img onload=\"scrollBottomImg(this)\" style='max-width: 80%; max-height: 100%' src="+req.body["url"]+" /><br/>"}); break;
+                        case "video": res.json({parsed: "<br/><video style='max-width: 80%; max-height: 80%' controls><source onload=\"scrollBottomImg(this)\" src="+req.body["url"]+"></video><br/>"}); break;
+                        case "image": res.json({parsed: "<br/><img onload=\"scrollBottomImg(this)\" style='max-width: 80%; max-height: 80%' src="+req.body["url"]+" /><br/>"}); break;
                         default: {res.json({parsed: "<a href="+req.body["url"]+">"+req.body["url"]+"</a>"})}
                     }
                 },
@@ -341,32 +386,38 @@ app.post("/api/linkType", (req, res)=>{
 
 app.post("/api/setSettings", (req, res)=>{
     jwt.verify(req.signedCookies['accessToken'], jwtAccSecret, (err, result)=>{
-        db.query("Select password, color, username, pfp From User Where user_id=?", [result.id], (err, db_result)=>{
-            if(err) console.log(err);
-            else if(db_result.length != 0){
-                let temp = req.body;
-                temp["username"] = db_result[0]["username"];
-                bcrypt.compare(req.body["verifyPass"], db_result[0]['password']).then(crypt_res=>{if(crypt_res){
-                    db.query("select user_id from User where username = ?", [req.body["username"]], (err, db_res)=>{
-                        if(err) console.log(err);
-                        else{
-                            if(db_res.length==0 && db_result[0]["username"]!=req.body["username"]) temp["username"] = req.body["username"];
-                            if(req.body["pfp"]!=""){
-                                if(temp["pfp"]!="https://chat.mikmik.xyz/images/default_user.jpg"){
-                                    fs.writeFile("./site/data/pfp/"+result.id+".png", req.body["pfp"].split(",")[1], {encoding: "base64"}, (err)=>{if(err)console.log(err)})
-                                    temp["pfp"] = './data/pfp/'+result.id+'.png';
-                                }else temp["pfp"] = "./images/default_user.jpg";                                       
-                            }else temp["pfp"] = db_result[0]["pfp"];
-                            db.query("Update User set username = ?, color = ?, pfp = ? Where user_id = ?", [temp["username"], temp["color"], temp["pfp"], result.id], err=>{
-                                if(err)console.log(err);
-                                else res.status(200).send("Success");
-                            })
-                        } 
-                    })
-                }else res.status(401).send("Incorrect password");
-                }) 
-            }
-        })
+        if(err) switch(err['name']){
+            case 'TokenExpiredError': res.status(401).send("Expired access token"); break;
+            case 'JsonWebTokenError': res.status(401).send("Expired access token"); break;
+            default: console.log(err); break;
+        }else{
+            db.query("Select password, color, username, pfp From User Where user_id=?", [result.id], (err, db_result)=>{
+                if(err) console.log(err);
+                else if(db_result.length != 0){
+                    let temp = req.body;
+                    temp["username"] = db_result[0]["username"];
+                    bcrypt.compare(req.body["verifyPass"], db_result[0]['password']).then(crypt_res=>{if(crypt_res){
+                        db.query("select user_id from User where username = ?", [req.body["username"]], (err, db_res)=>{
+                            if(err) console.log(err);
+                            else{
+                                if(db_res.length==0 && db_result[0]["username"]!=req.body["username"] && req.body["username"]!="") temp["username"] = req.body["username"];
+                                if(req.body["pfp"]!=""){
+                                    if(temp["pfp"]!="https://chat.mikmik.xyz/images/default_user.jpg"){
+                                        fs.writeFile("./site/data/pfp/"+result.id+".png", req.body["pfp"].split(",")[1], {encoding: "base64"}, (err)=>{if(err)console.log(err)})
+                                        temp["pfp"] = './data/pfp/'+result.id+'.png';
+                                    }else temp["pfp"] = "./images/default_user.jpg";                                       
+                                }else temp["pfp"] = db_result[0]["pfp"];
+                                db.query("Update User set username = ?, color = ?, pfp = ? Where user_id = ?", [temp["username"], temp["color"], temp["pfp"], result.id], err=>{
+                                    if(err)console.log(err);
+                                    else res.status(200).send("Success");
+                                })
+                            } 
+                        })
+                    }else res.status(401).send("Incorrect password");
+                    }) 
+                }
+            })
+        }
     })
 })
 

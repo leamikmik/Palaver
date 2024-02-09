@@ -8,7 +8,7 @@ let page = 0;
 let loadingMsgs = false;
 let noMoreMsgs = false;
 let cropper = '';
-let conSettingsModal;
+let loadedMsgs = 0;
   
 function onlyUnique(value, index, array) {
     return array.indexOf(value) === index;
@@ -35,8 +35,10 @@ function urlify(text, el){
         }).then(res=>res.json()).then(
             data=>{
                 el.innerHTML = text.replaceAll(url, data["parsed"]);
+                loadedMsgs++;
             }
         );
+    else loadedMsgs++;
 }
 
 function enterMsg(event){
@@ -62,23 +64,27 @@ function toggleVisibility(btn){
 
 function gotoRoomSettings(){
     document.getElementById("roomSettings").style.display="";
+    document.getElementById("chatMsg").disabled = true;
 }
 
 function closeRoomSettings(){
     document.getElementById("roomSettings").style.display = "none";
+    document.getElementById("chatMsg").disabled = false;
 }
 
 function gotoSettings(){
     document.getElementById("settings").style.display="";
+    document.getElementById("chatMsg").disabled = true;
 }
 
 function closeSettings(){
     if(changedSettings){
-        const modal = new bootstrap.Modal('#closeSettingsModal', {});
-        modal.show()
+        let closeSettingsModal = new bootstrap.Modal("#closeSettingsModal", {getInstance: true})
+        closeSettingsModal.show()
     }
     else{
         document.getElementById("settings").style.display="none";
+        document.getElementById("chatMsg").disabled = false;
     }
     
 }
@@ -87,6 +93,7 @@ function confirmCloseSettings(){
     settings_proc=false;
     changedSettings = false;
     document.getElementById("changedSettings").style.display = "none";
+    document.getElementById("chatMsg").disabled = false;
     pfpLock = false;
     socket.close();
     closeSettings();
@@ -108,8 +115,18 @@ function changeSettings(){
     changedSettings = true;
 }
 
+function confirmSettings(){
+    let confSettingsModal = new bootstrap.Modal(document.getElementById('confirmSettingsModal'), {getInstance: true})
+    confSettingsModal.show()
+}
+
+function closeConfirmSettings(){
+    let confSettingsModal = new bootstrap.Modal(document.getElementById('confirmSettingsModal'), {getInstance: true})
+    confSettingsModal.hide()
+}
+
 function saveSettings(){
-    if(changedSettings){
+    if(changedSettings && document.getElementById("S_userName").value!=""){
         settings_proc=true;
         document.getElementById("saveSetBtn").disabled = true;
         let temp = {
@@ -132,15 +149,14 @@ function saveSettings(){
                     changedSettings = false;
                     document.getElementById("changedSettings").style.display = "none";
                     pfpLock = false;
-                    document.getElementById("saveSetPass").value = "";
-                    const modal = new bootstrap.Modal('#confirmSettingsModal', {});
-                    modal.hide()
+                    closeConfirmSettings();
                     break;
                 case 401: generateToast("Incorrect password", "bg-danger", "Warning"); break;
                 default: console.log(res);
             }
             settings_proc=false;
             document.getElementById("saveSetBtn").disabled = false;
+            document.getElementById("saveSetPass").value = "";
         });
     }
 }
@@ -244,6 +260,10 @@ function generateRoomButton(room){
     button.children[1].innerText = room['name'];
     
     button.addEventListener("click", ()=>{
+        for(let room of document.getElementById("joinedRooms").children){
+            room.classList.remove("active")
+        }
+        button.classList.add("active")
         socket.send(JSON.stringify({id: room["id"], type:"getRoom"}))
         if(changedSettings) closeSettings();
         closeRoomSettings();
@@ -259,9 +279,9 @@ function generateMsg(msg){
     if(msg["pfp"]!=null) div.children[0].src = msg["pfp"];
     div.children[1].style.color = msg["color"];
     div.children[1].innerText = msg["newUser"] ? msg["sender"] : msg["sender"]+": ";
-    div.children[2].innerHTML = msg["newUser"] ? " has joined the room." : msg['msg'];
-    div.children[3].innerText = new Date(msg["sent_at"]).toLocaleString("sl-SI");
-    urlify(div.children[2].innerHTML, div.children[2])
+    div.children[2].children[0].innerHTML = msg["newUser"] ? " has joined the room." : msg['msg'];
+    div.children[3].children[0].children[0].innerText = new Date(msg["sent_at"]).toLocaleString("sl-SI");
+    urlify(div.children[2].innerHTML, div.children[2].children[0])
     return div;
 }
 
@@ -276,9 +296,9 @@ function generateMember(user){
 
 function generateSettingsMember(user){
     let div = document.getElementById("tempSettingsMember").content.cloneNode(true).children[0];
-    if(user["pfp"]!=null) div.children[0].src = user["pfp"];
-    div.children[1].style.color = user["color"];
-    div.children[1].innerText = user["username"];
+    if(user["pfp"]!=null) div.children[1].src = user["pfp"];
+    div.children[2].style.color = user["color"];
+    div.children[2].innerText = user["username"];
     return div;
 }
 
@@ -303,12 +323,12 @@ function scrollToBottom(){
 }
 
 function focusSend(){
-    document.getElementById("chatMsg").focus();
+    if(!document.getElementById("chatMsg").disabled) document.getElementById("chatMsg").focus();
 }
 
 function sendMsg(){
     const text_field = document.getElementById("chatMsg");
-    if(text_field.value.trim()!="" && text_field.value.length < 2001 && current_room!="") {
+    if(text_field.value.trim()!="" && text_field.value.length < 65000 && current_room!="") {
         socket.send(JSON.stringify({msg: text_field.value.trim(), room: current_room, type:"sendMsg"}))
         text_field.value="";
     }
@@ -320,6 +340,7 @@ function connectSocket(){
     const RS_joinedUsers = document.getElementById("RS_joinedUsers");
     const chatbox = document.getElementById("chatbox");
     const inviteCode = document.getElementById("inviteCode");
+    const loadingChat = document.getElementById("loadingChat");
     socket = new WebSocket("wss://chat.mikmik.xyz/api/ws/");
     socket.onopen = (event)=>{
         console.log(event);
@@ -362,6 +383,7 @@ function connectSocket(){
                 });
                 break;
             case "getRoom":
+                loadingChat.style.display = "flex"
                 while(chatbox.firstChild) chatbox.removeChild(chatbox.lastChild);
                 while(joinedUsers.firstChild) joinedUsers.removeChild(joinedUsers.lastChild);
                 while(RS_joinedUsers.firstChild) RS_joinedUsers.removeChild(RS_joinedUsers.lastChild);
@@ -369,10 +391,16 @@ function connectSocket(){
                 document.getElementById("roomName").innerText=parsedData["roomName"];
                 document.getElementById(parsedData["room"]).children[0].style.display="none";
                 document.getElementById(parsedData["room"]).children[0].innerText = 0;
+                document.getElementById("chatMsg").disabled = true;
+                document.getElementById("chatMsg").value = "";
+                document.getElementById("msgInput").style.display = "none";
                 inviteCode.value = parsedData["inviteCode"];
                 current_room = parsedData["room"];
                 page = 0;
+                loadedMsgs = 0;
                 loadingMsgs = false;
+                
+                document.getElementById("chat").display="none";
                 noMoreMsgs = false;
                 parsedData["messages"].forEach((msg)=>{
                     chatbox.prepend(generateMsg(msg));
@@ -380,15 +408,26 @@ function connectSocket(){
                 parsedData["members"].forEach((user)=>{
                     joinedUsers.append(generateMember(user));
                 });
-
                 if(parsedData["owner"]){
                     parsedData["members"].forEach((user)=>{
                         RS_joinedUsers.append(generateSettingsMember(user));
                     });
                     document.getElementById("roomSetName").value = parsedData["roomName"];
                 }
-
-                chatbox.scrollTop = chatbox.scrollHeight - chatbox.clientHeight;
+                let isLoaded = setInterval(()=>{
+                    if(loadedMsgs==parsedData["messages"].length){
+                        //chatbox.scrollTop = chatbox.scrollHeight - chatbox.clientHeight;
+                        chatbox.scrollTop = chatbox.scrollHeight*2;
+                        loadingChat.style.display = "none"
+                        document.getElementById("msgInput").style.display = "flex";
+                        document.getElementById("chatMsg").disabled = false;
+                        document.getElementById("chat").display="flex";
+                        document.getElementById("loadingProgress").style.width = "0%";
+                        focusSend();
+                        clearInterval(isLoaded);
+                    }else document.getElementById("loadingProgress").style.width = loadedMsgs/parsedData["messages"].length*100+"%";
+                }, 100)
+                
                 break;
             case "getMoreRoom":
                 loadingMsgs = false;
@@ -433,11 +472,6 @@ function connectSocket(){
     }
 }
 
-document.addEventListener("DOMContentLoaded", ()=>{
-    connectSocket();
-    conSettingsModal = new bootstrap.Modal('#editPfp', {});
-})
-
 document.getElementById("pfp_upload").addEventListener('change', e=>{
     if(e.target.files.length){
         const modal = new bootstrap.Modal('#editPfp', {});
@@ -468,4 +502,38 @@ document.getElementById("pfp_upload").addEventListener('change', e=>{
         };
         reader.readAsDataURL(e.target.files[0]);
     }
+})
+
+document.getElementById("uploadFile").addEventListener('change', e=>{
+    if(e.target.files.length){
+        let file = e.target.files[0];
+        if(file.size > 10*1000*1000) generateToast("File over 10MB", "bg-danger", "Error uploading file");
+        else{
+            let formData = new FormData();
+            formData.append("file", file);
+            formData.append("room", current_room)
+            fetch(domain+"/upload", {
+                method: "POST",
+                body: formData,
+                credentials: 'include'
+            }).then(
+                res=>{
+                    switch(res.status){
+                        case 200:
+                            return res.json();
+                        case 413: generateToast("File over 10MB", "bg-danger", "Error uploading file"); break;
+                        default: console.log(res);
+                    }
+                }
+            ).then(
+                data=>{
+                    document.getElementById("chatMsg").value += " "+data['link'];
+                }
+            );
+        }
+    }
+})
+
+document.addEventListener("DOMContentLoaded", ()=>{
+    connectSocket();
 })
