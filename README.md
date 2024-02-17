@@ -1,1 +1,1 @@
-<a href="chat.mikmik.xyz">Website</a>
+<a href="https://chat.mikmik.xyz">Website</a>
