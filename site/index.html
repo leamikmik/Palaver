@@ -30,8 +30,8 @@
                 <i class="bi bi-plus-circle-fill"></i>
             </button>
             <div class="dropdown-menu">
-                <button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#createRoomModal">Create room</button>
-                <button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#joinRoomModal">Join room</button>
+                <button class="dropdown-item" onclick="openCreate()">Create room</button>
+                <button class="dropdown-item" onclick="openModal('joinRoom')">Join room</button>
             </div>            
         </div>
         <div id="joinedRooms" class="list-group d-flex" style="width: 80%; margin-left: 5%; max-height: 33%;"></div>
@@ -51,7 +51,7 @@
 
         <div class="card d-flex flex-row" style="background-color: #313b4b; position: absolute; width: 18%; left: 1%; bottom: 1%; height: 3em;">
             <img id="pfp" class="pfp"/>
-            <h5 class="overflow-hidden flex-fill" style="margin: auto 0;"><b id="userName"></b></h5>
+            <h5 class="overflow-hidden flex-fill" style="margin: auto 0; text-overflow: ellipsis; white-space: nowrap;"><b id="userName"></b></h5>
             <button id="logout" class="invis_btn" style="margin: auto 5%; margin-right: 0;" data-bs-toggle="modal" data-bs-target="#logoutModal">
                 <i class="bi bi-door-closed-fill shown"></i>
                 <i class="bi bi-door-open-fill hidden"></i>
@@ -64,6 +64,7 @@
         <div style="width: 100%; height: 7%; background-color: #313b4b; display: flex; flex-direction: row;" class="shadow-lg rounded">
             <h2 id="roomName" class="flex-fill" style="margin: auto 1%;"></h2>
             <button id="roomSettingsBtn" class="invis_btn" style="margin: auto 1%; height: 3em; width: 3em; display: none;" onclick="gotoRoomSettings()"><i class="bi bi-gear-fill" style="font-size: 1.5em;"></i></button>
+            <button id="leaveBtn" class="invis_btn" style="margin: auto 1%; height: 3em; width: 3em; display: none;" onclick="leaveRoom()"><i class="bi bi-x-octagon-fill" style="font-size: 1.5em;"></i></button>
         </div>
         
         <div id="chatbox" class="list-group list-group-flush" onscroll="scrollToTop()"></div>
@@ -91,7 +92,7 @@
             <div style="height: 10%; width: 100%; background-color: #313b4b; border-radius: 50px;">
                 <button type="button" class="btn-close" onclick="closeSettings()" style="width: 10%; height: 90%; font-size: 1.5em;" aria-label="Close"></button>
             </div>
-            <button id="changedSettings" class="btn btn-primary" style="position: absolute; bottom: 10%; right: 5%; display: none;" onclick="confirmSettings()"><i class="bi bi-floppy-fill" style="font-size: 2em;"></i></button>
+            <button id="changedSettings" class="btn btn-primary" style="position: absolute; bottom: 10%; right: 5%; display: none;" onclick="openModal('confirmSettings')"><i class="bi bi-floppy-fill" style="font-size: 2em;"></i></button>
             <div id="settingsAlt" style="width: 95%; height: 90%; margin: 0 auto; top: 10%;">
                 <div style="width: 100%; height: 10%;">
                     <h1 style="margin-left: 5%; margin-top: 5%;"><b><i>User</i></b></h1>
@@ -146,8 +147,8 @@
                 <div style="margin: 5% 20%; display: flex; flex-direction: column; align-items: center; justify-content: center;">
                     <input id="roomSetName" disabled type="text" style="width: 100%; font-size: 2em; text-align: center;"/>
                     <div style="font-size: 2.5em; justify-content: space-evenly; display: flex; width: 100%; margin-top: 5%;">
-                        <button class="invis_btn" onclick="toggleInput('roomSetName')"><i class="bi bi-pencil-square"></i></button>
-                        <button class="invis_btn" data-bs-toggle="modal" data-bs-target="#deleteRoomModal"><i class="bi bi-trash3-fill"></i></button>
+                        <button class="invis_btn" onclick="temp()"><i class="bi bi-pencil-square"></i></button>
+                        <button class="invis_btn" onclick="openModal('deleteRoom')"><i class="bi bi-trash3-fill"></i></button>
                     </div>
                 </div>
                 <hr style="width: 80%; margin: 3% auto;"/>
@@ -157,7 +158,7 @@
                 <div style="margin-top: 5%; display: flex; flex-direction: column; align-items: center; max-height: 50%;">
                     <div style="margin-bottom: 2%;width: fit-content;">
                         <button class="btn btn-primary">Kick selected</button>
-                        <button class="btn btn-secondary">Ban selected</button>
+                        <button class="btn btn-secondary" onclick="temp()">Ban selected</button>
                     </div>
                     <div id="RS_joinedUsers" class="list-group" style="width: 75%;"></div>
                 </div>
@@ -173,23 +174,30 @@
           <div class="modal-content">
             <div class="modal-header">
                 <h2 class="modal-title fs-5">Delete room</h2>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" data-bs-target="#deleteRoomModal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <h1>Warning: This will permanently delete the room and its contents</h1>
-                <p class="input-group form-floating">
-                    <input name="delRoomPas" type="password" id="delRoomPas" onkeypress="enterSettings(event)" class="form-control"> 
-                    <label for="delRoomPas">Password</label>
-                    <button class="btn btn-outline-secondary" type="button" style="font-size: 1.5em;" onclick="toggleVisibility(this)">
-                        <i class="bi bi-eye-fill"></i>
-                        <i class="bi bi-eye-slash-fill" style="display: none;"></i>
-                    </button>
-                </p>
-                <b>Input password to confirm</b>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-bs-target="#deleteRoomModal">Close</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('deleteRoom')">Close</button>
                 <button type="button" class="btn btn-danger" id="delRoomBtn" onclick="deleteRoom()">Delete</button>
+            </div>
+          </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="leaveRoomModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title fs-5">Delete room</h2>
+            </div>
+            <div class="modal-body">
+                <h3>Warning: You will not be able to rejoin without a code</h3>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('leaveRoom')">Close</button>
+                <button type="button" class="btn btn-danger" id="leaveRoomBtn" onclick="leaveRoom()">Leave</button>
             </div>
           </div>
         </div>
@@ -200,7 +208,6 @@
           <div class="modal-content">
             <div class="modal-header">
                 <h1 class="modal-title fs-5">Confirm settings</h1>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" data-bs-target="#confirmSettingsModal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <p class="input-group form-floating">
@@ -215,7 +222,7 @@
                 <b>Confirm password before saving settings</b>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-bs-target="#confirmSettingsModal">Close</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('confirmSettings')">Close</button>
                 <button type="button" class="btn btn-primary" id="saveSetBtn" onclick="saveSettings()">Save</button>
             </div>
           </div>
@@ -227,32 +234,30 @@
           <div class="modal-content">
             <div class="modal-header">
                 <h1 class="modal-title fs-5">Discard changes?</h1>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body form-floating">
                 <b><i>Discard unsaved settings?</i></b> 
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary"  data-bs-dismiss="modal" onclick="confirmCloseSettings()">Discard</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('closeSettings')">Close</button>
+                <button type="button" class="btn btn-primary" onclick="closeModal('closeSettings')">Discard</button>
             </div>
           </div>
         </div>
     </div>
 
-    <div class="modal fade" id="editPfp" tabindex="-1" aria-hidden="true">
+    <div class="modal fade" id="editPfpModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
           <div class="modal-content">
             <div class="modal-header">
                 <h1 class="modal-title fs-5">Crop profile picture</h1>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <div id="pfp_crop" style="height: 400px; width: 400px; margin: auto;"></div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary" data-bs-dismiss="modal" onclick="savePfp()">Save</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('editPfp')">Close</button>
+                <button type="button" class="btn btn-primary" onclick="savePfp()">Save</button>
             </div>
           </div>
         </div>
@@ -263,14 +268,24 @@
           <div class="modal-content">
             <div class="modal-header">
                 <h1 class="modal-title fs-5">Create room</h1>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body form-floating">
                 <input type="text" id="createRoomName" onkeypress="enterCreate(event)" class="form-control"> 
                 <label for="createRoomName">Room name</label>
+                <div class="form-check form-switch" style="margin-top: 10px;">
+                    <input class="form-check-input" id="createRoomExpires" type="checkbox" role="switch" onchange="toggleDatePicker(this)"> 
+                    Expires
+                    <i class="bi bi-question-circle" data-bs-toggle="tooltip" data-bs-title="If enabled, room and it's contents will be PERMANENTLY deleted after set date."></i>
+                </div>
+                <input type="date" id="createRoomExpireDate" style="display: none;"/>
+                <div class="form-check form-switch" style="margin-top: 10px;">
+                    <input class="form-check-input" id="createRoomSecure" type="checkbox" role="switch"> 
+                    Secure
+                    <i class="bi bi-question-circle" data-bs-toggle="tooltip" data-bs-title="If enabled, room and it's contents will be encrypted before storage."></i>
+                </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('createRoom')">Close</button>
                 <button type="button" class="btn btn-primary" onclick="create()">Create</button>
             </div>
           </div>
@@ -281,14 +296,13 @@
           <div class="modal-content">
             <div class="modal-header">
                 <h1 class="modal-title fs-5">Join room</h1>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body form-floating">
                 <input type="text" id="joinRoomName" onkeypress="enterJoin(event)" class="form-control"> 
                 <label for="joinRoomName">Invite code</label>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('joinRoom')">Close</button>
                 <button type="button" class="btn btn-primary" onclick="join()">Join</button>
             </div>
           </div>
@@ -299,7 +313,6 @@
           <div class="modal-content">
             <div class="modal-header">
                 <h1 class="modal-title fs-5">Invite user</h1>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body form-floating">
                 <input type="text" id="inviteCode" style="width: 80%" disabled/> 
@@ -315,7 +328,6 @@
         <div class="modal-dialog">
           <div class="modal-content">
             <div class="modal-header">
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body form-floating">
                 <h3>Do you wish to logout?</h3>
@@ -339,22 +351,22 @@
         </div>
     </template>
     <template id="tempMsg">
-        <div class="d-flex msg list-group-item">
+        <div class="d-flex msg list-group-item"> 
             <img class="pfp"/>
             <b>Username</b> 
-            <div class="scrollOverflow" style="max-height: 100vh; width: 99%; position: relative; margin: auto 0;">
+            <div class="scrollOverflow" style="max-height: 100vh; width: 90%; position: relative; margin: auto 0;">
                 <text class="flex-fill"></text>
             </div>
             <div style="margin-left: auto; min-width: fit-content; display: flex; flex-direction: row;">
-                <div style="height: fit-content; width: fit-content; top: 0; position: relative;">
-                    <i> Upload time </i>
-                    <button class="dropdown-toggle invis_btn dropend" data-bs-toggle="dropdown" aria-expanded="false">
+                <div style="height: fit-content; width: fit-content; margin: auto 0; position: relative;">
+                    <button style="display: none;" class="dropdown-toggle invis_btn dropend" data-bs-toggle="dropdown" aria-expanded="false">
                         <i class="bi bi-three-dots-vertical"></i>
                     </button>
                     <div class="dropdown-menu dropdown-menu-end">
                         <button class="dropdown-item" data-bs-toggle="modal">Edit</button>
                         <button class="dropdown-item" data-bs-toggle="modal">Delete</button>
-                    </div> 
+                    </div>
+                    <i> Upload time </i>
                 </div>
             </div>
             

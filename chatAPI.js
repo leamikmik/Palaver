@@ -16,6 +16,7 @@ const jwt = require('jsonwebtoken');
 const jwtAccSecret = process.env.CH_ACCESS_TOKEN_SECRET; 
 const jwtRefSecret = process.env.CH_REFRESH_TOKEN_SECRET; 
 const saltNum = Number(process.env.CH_SALTROUNDS);
+const encryptSecret = process.env.CH_ENCRYPTION_SECRET; 
 //Secure cookies, mysql, and other security
 const cookieParser = require('cookie-parser');
 const mySql = require('mysql');
@@ -24,6 +25,36 @@ const cors = require("cors");
 const validator = require("node-email-validation");
 const { v4: uuidv4 } = require('uuid');
 const { fstat } = require('fs');
+//Encryption
+const crypto = require("crypto");
+
+class Encrypter {
+  constructor(encryptionKey) {
+    this.algorithm = "aes-192-cbc";
+    this.key = crypto.scryptSync(encryptionKey, "salt", 24);
+  }
+
+  encrypt(clearText) {
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv(this.algorithm, this.key, iv);
+    const encrypted = cipher.update(clearText, "utf8", "hex");
+    return [
+      encrypted + cipher.final("hex"),
+      Buffer.from(iv).toString("hex"),
+    ].join("|");
+  }
+
+  decrypt(encryptedText) {
+    const [encrypted, iv] = encryptedText.split("|");
+    if (!iv) throw new Error("IV not found");
+    const decipher = crypto.createDecipheriv(
+      this.algorithm,
+      this.key,
+      Buffer.from(iv, "hex")
+    );
+    return decipher.update(encrypted, "hex", "utf8") + decipher.final("utf8");
+  }
+}
 //Domain whitelist + api settings
 let whitelist = ['https://chat.mikmik.xyz']
 let corsOptionsDelegate = function (req, callback) {
@@ -60,15 +91,15 @@ const db = mySql.createPool({
 
 app.ws('/api/ws',(ws, req)=>{
     let subscriber = (room, data)=>{
-        ws.send(data);
+        switch(data["type"]){
+            default: ws.send(data);
+        }
     };
     setInterval(()=>{
         ws.send(JSON.stringify({ping: "PING"}))
     }, 60*1000);
     let subscriptions = [];
     let tokens = [];
-    let name;
-    let pfp;
     //console.log(req.signedCookies)
     jwt.verify(req.signedCookies['accessToken'], jwtAccSecret, (err, res)=>{
         if(err) switch(err['name']){
@@ -94,7 +125,10 @@ app.ws('/api/ws',(ws, req)=>{
             db.query("Update User set active = 1 where user_id = ?", [res.id], (err, temp1)=>{
                 if(err) console.log(err);
                 else{
-                db.query('select r.room_name as name, r.room_id as id, (Select count(m.msg_id) from Message m where m.room_id = id and (m.sent_at > (Select lastVisited from RoomUser ru where ru.user_id = ? and ru.room_id = id))) as newMsg from RoomUser ru2 Join Room r on r.room_id=ru2.room_id where ru2.user_id = ?',
+                db.query('select r.room_name as name, r.room_id as id, '+
+                '(Select count(m.msg_id) from Message m where m.room_id = id and '+
+                '(m.sent_at > (Select lastVisited from RoomUser ru where ru.user_id = ? and ru.room_id = id))) as newMsg '+
+                'from RoomUser ru2 Join Room r on r.room_id=ru2.room_id where ru2.user_id = ? and status=1',
                     [res.id, res.id], (err, db_res)=>{
                         if(err) console.log(err);
                         else{
@@ -106,6 +140,7 @@ app.ws('/api/ws',(ws, req)=>{
                                 PubSub.publish(db_res[i]['id'], JSON.stringify({id: db_res[i]['id'], action: "joined", type: "userAction"}));
                                 temp["rooms"][i] = db_res[i];
                             }
+                            for(let token in tokens) tokens.push(PubSub.subscribe(token+"."+res.id, subscriber));
                             ws.send(JSON.stringify(temp));
                         }
                     })
@@ -140,13 +175,15 @@ app.ws('/api/ws',(ws, req)=>{
                 case 'JsonWebTokenError': ws.send(JSON.stringify({errorMessage: "Expired access token", statusCode: 401})); break;
                 default: console.log(err); break;
             }else switch(parsedData['type']){
-                case "refreshUsers":
-                    let temp = {members: [], type: "freshUsers"};
-                    db.query("Select pfp, username, color, active from User u join RoomUser ru on ru.user_id=u.user_id where room_id = ? order by active desc, lower(username)", 
+                case "refreshData": // {id: roomid}
+                    let temp = {members: [], type: "freshData"};
+                    db.query("Select u.user_id as id, pfp, username, color, active from User u join RoomUser ru on ru.user_id=u.user_id where room_id = ? order by active desc, lower(username)", 
                     [parsedData['id']], (err, db_res2)=>{
                         if(err) console.log(err);
                         else{
-                            for(let i = 0; i<db_res2.length; i++) temp["members"][i] = db_res2[i];
+                            for(let i = 0; i<db_res2.length; i++){
+                                temp["members"][i] = db_res2[i];
+                            }
                             ws.send(JSON.stringify(temp));
                         }
                     })
@@ -156,65 +193,80 @@ app.ws('/api/ws',(ws, req)=>{
                         if(err) console.log(err);
                     })
                     break;
-                case 'getRoom':{
+                case 'getRoom':{ // {id: roomid}
                     //new Date(Date.now()).toISOString().slice(0, 19).replace('T', ' ')
-                    db.query('select m.message_text as msg, m.sent_at, u.username as sender, u.color, u.pfp from Message m' +
+                    db.query('select m.message_text as msg, m.sent_at, u.username as sender, u.color, u.pfp, if(?=m.sender_id, "true", "false") as msgOwner from Message m' +
                     ' Join User u on m.sender_id=u.user_id' +
                     //' Join Room r on m.room_id=r.room_id' +
                     ' Join RoomUser ru on m.room_id=ru.room_id' +
                     ' Where ru.user_id = ? and ru.room_id = ?' +
-                    ' Order by sent_at desc Limit 50' , [res.id, parsedData['id']], (err, db_res)=>{
+                    ' Order by sent_at desc Limit 50' , [res.id, res.id, parsedData['id']], (err, db_res)=>{
                         if(err) console.log(err);
-                        else db.query("Select inviteCode, r.room_name from RoomUser ru Join Room r on ru.room_id=r.room_id where ru.room_id = ? and user_id = ?",[parsedData['id'], res.id], (err, db_res2)=>{
+                        else db.query("Select inviteCode, r.room_name from RoomUser ru Join Room r on ru.room_id=r.room_id where ru.room_id = ? and user_id = ? and status=1",[parsedData['id'], res.id], (err, db_res2)=>{
                             if(err) console.log(err);
                             else
-                            db.query("Update RoomUser set lastVisited = ? where room_id = ? and user_id = ?", [new Date(Date.now()+3600000).toISOString().slice(0, 19).replace('T', ' '), parsedData['id'], res.id], ()=>{
+                            db.query("Update RoomUser set lastVisited = ? where room_id = ? and user_id = ? and status=1", [new Date(Date.now()+3600000).toISOString().slice(0, 19).replace('T', ' '), parsedData['id'], res.id], ()=>{
                                 let temp = {messages:[], members: [], room: parsedData['id'], roomName: db_res2[0]["room_name"], inviteCode: db_res2[0]["inviteCode"], owner: false, type: "getRoom"}
-                                db.query("Select * from Room where owner = ? and room_id = ?", [res.id, parsedData['id']], (err, temp1)=>{
-                                if(err) console.log(err);
-                                else if(temp1.length!=0) {temp['owner'] = true}
-                                for(let i = 0; i<db_res.length; i++){
-                                    temp['messages'][i] = db_res[i]["msg"] == null ? {newUser: true, sent_at: db_res[i]["sent_at"], sender: db_res[i]["sender"], color: db_res[i]["color"], pfp: db_res[i]["pfp"]} : db_res[i];
-                                    temp['messages'][i]["msg"] = db_res[i]["msg"] != null ? temp['messages'][i]["msg"].replaceAll("<", "&#60").replaceAll(">", "&#62") : temp['messages'][i]["msg"];
-                                }
-                                db.query("Select pfp, username, color, active from User u join RoomUser ru on ru.user_id=u.user_id where room_id = ? order by active desc, lower(username)", [parsedData['id']], (err, db_res2)=>{
+                                db.query("Select owner, secure from Room where room_id = ?", [parsedData['id']], (err, temp1)=>{
                                     if(err) console.log(err);
-                                    else{
-                                        for(let i = 0; i<db_res2.length; i++) temp["members"][i] = db_res2[i];
-                                        ws.send(JSON.stringify(temp));
+                                    else if(temp1[0]["owner"]==res.id) {temp['owner'] = true}
+                                    let enc;
+                                    if(temp1[0]["secure"]){enc = new Encrypter(encryptSecret+parsedData['id']);}
+                                    for(let i = 0; i<db_res.length; i++){
+                                        temp['messages'][i] = db_res[i]["msg"] == null ? {newUser: true, sent_at: db_res[i]["sent_at"], sender: db_res[i]["sender"], color: db_res[i]["color"], pfp: db_res[i]["pfp"], msgOwner: false} : db_res[i];
+                                        temp['messages'][i]["msg"] = db_res[i]["msg"] != null ? (temp1[0]["secure"] ? enc.decrypt(temp['messages'][i]["msg"]) : temp['messages'][i]["msg"]).replaceAll("<", "&#60").replaceAll(">", "&#62") : temp['messages'][i]["msg"];
                                     }
-                                })});
+                                    db.query("Select u.user_id as id, pfp, username, color, active from User u join RoomUser ru on ru.user_id=u.user_id where room_id = ? and status=1 order by active desc, lower(username)", [parsedData['id']], (err, db_res2)=>{
+                                        if(err) console.log(err);
+                                        else{
+                                            for(let i = 0; i<db_res2.length; i++){
+                                                temp["members"][i] = db_res2[i];
+                                                if(temp1[0]["owner"]==db_res2[i]["id"]) temp["members"][i]["owner"]=true;
+                                            }
+                                            ws.send(JSON.stringify(temp));
+                                        }
+                                    })
+                                });
                             });
                         })
                     });
                     break;
                 }
-                case "getMoreRoom":{
-                    db.query('select m.message_text as msg, m.sent_at, u.username as sender, u.color, u.pfp from Message m' +
+                case "getMoreRoom":{// {id: roomid, times: num}
+                    db.query('select m.message_text as msg, m.sent_at, u.username as sender, u.color, u.pfp, if(?=m.sender_id, "true", "false") as msgOwner from Message m' +
                     ' Join User u on m.sender_id=u.user_id' +
+                    //' Join Room r on m.room_id=r.room_id' +
                     ' Join RoomUser ru on m.room_id=ru.room_id' +
                     ' Where ru.user_id = ? and ru.room_id = ?' +
-                    ' Order by sent_at desc Limit ?, 50' , [res.id, parsedData['id'], parsedData["times"]*50], (err, db_res)=>{
+                    ' Order by sent_at desc Limit ?, 50' , [res.id, res.id, parsedData['id'], parsedData["times"]*50], (err, db_res)=>{
                         if(err) console.log(err);
-                        else{
+                        else db.query("Select secure from Room where room_id = ?", [parsedData['id']], (err, temp1)=>{
+                            if(err) console.log(err);
                             let temp = {messages:[], room: parsedData['id'], type: "getMoreRoom"};
+                            let enc
+                            if(temp1[0]["secure"]) enc = new Encrypter(encryptSecret+parsedData['id']);
                             for(let i = 0; i<db_res.length; i++){
                                 temp['messages'][i] = db_res[i]["msg"] == null ? {newUser: true, sent_at: db_res[i]["sent_at"], sender: db_res[i]["sender"], color: db_res[i]["color"], pfp: db_res[i]["pfp"]} : db_res[i];
-                                temp['messages'][i]["msg"] = db_res[i]["msg"] != null ? temp['messages'][i]["msg"].replaceAll("<", "&#60").replaceAll(">", "&#62") : temp['messages'][i]["msg"];
+                                temp['messages'][i]["msg"] = db_res[i]["msg"] != null ? (temp1[0]["secure"] ? enc.decrypt(temp['messages'][i]["msg"]) : temp['messages'][i]["msg"]).replaceAll("<", "&#60").replaceAll(">", "&#62") : temp['messages'][i]["msg"];
                             }
                             ws.send(JSON.stringify(temp));
-                        }
+                        });
                     })
 
                     break;
                 }
-                case 'sendMsg':{
-                    db.query("Select u.username as name, u.color, u.pfp, r.room_name as rName From RoomUser ru Join User u on ru.user_id=u.user_id Join Room r on ru.room_id=r.room_id Where ru.room_id = ? and ru.user_id = ?", [parsedData['room'], res.id], (err, db_res)=>{
+                case 'sendMsg':{// {msg: text, room: roomid}
+                    db.query("Select u.username as name, u.color, u.pfp, r.room_name as rName, r.secure From RoomUser ru Join User u on ru.user_id=u.user_id Join Room r on ru.room_id=r.room_id Where ru.room_id = ? and ru.user_id = ?", [parsedData['room'], res.id], (err, db_res)=>{
                         if(err) console.log(err);
                         else if(db_res.length>0){ //console.log(db_res)
                             PubSub.publish(parsedData['room'], JSON.stringify({msg: parsedData['msg'].replaceAll("<", "&#60").replaceAll(">", "&#62"), sender: db_res[0]['name'], pfp: db_res[0]['pfp'], color: db_res[0]["color"] , room: parsedData['room'], roomName: db_res[0]["rName"], sent_at: Date(Date.now()), type: "newMsg"})) //io.emit('event', "hii")
+                            let msg = parsedData['msg'];
+                            if(db_res[0]["secure"]){
+                                let enc = new Encrypter(encryptSecret+parsedData["room"]);
+                                msg = enc.encrypt(msg);
+                            }
                             db.query("Insert into Message (room_id, sender_id, message_text) Value (?, ?, ?)",
-                            [parsedData['room'], res.id, parsedData['msg']], (err)=>{
+                            [parsedData['room'], res.id, msg], (err)=>{
                                 if(err) console.log(err);
                                 else db.query("Update RoomUser set lastVisited = ? where room_id = ? and user_id = ?", [new Date(Date.now()+3600000).toISOString().slice(0, 19).replace('T', ' '), parsedData['room'], res.id], ()=>{
                                     if(err) console.log(err);
@@ -225,27 +277,28 @@ app.ws('/api/ws',(ws, req)=>{
                     break;
                 }
                 case 'joinRoom':{
-                    db.query("Select * from RoomUser where room_id=(Select room_id from RoomUser where inviteCode=?) and user_id=?", [parsedData['inviteCode'], res.id], (err, temp1)=>{
-                        if(temp1.length==0)
-                        db.query("Insert into RoomUser (room_id, user_id, joinedBy) Values ((Select ru2.room_id from RoomUser ru2 where ru2.inviteCode=?), ?, ?)", [parsedData['inviteCode'], res.id, parsedData['inviteCode']], (err, db_res)=>{
+                    db.query("Select status from RoomUser where room_id=(Select room_id from RoomUser where inviteCode=?) and user_id=?", [parsedData['inviteCode'], res.id], (err, temp1)=>{
+                        if(temp1.length==0 || temp1[0]["status"]=="Out")
+                        db.query(temp1.length>0 ? "Update RoomUser ru set status=1, joinedBy = ? where user_id = ? and ru.room_id=(Select ru2.room_id from RoomUser ru2 where ru2.inviteCode=?)" : "Insert into RoomUser (room_id, user_id, joinedBy) Values ((Select ru2.room_id from RoomUser ru2 where ru2.inviteCode=?), ?, ?)", [parsedData['inviteCode'], res.id, parsedData['inviteCode']], (err, db_res)=>{
                             if(err) console.log(err);
                             else {
                                 ws.send(JSON.stringify({message: "Joined room", status: 200}));
-                                db.query('select r.room_name as name, r.room_id as id, (Select count(m.msg_id) from Message m where m.room_id = id and (m.sent_at > (Select lastVisited from RoomUser ru where ru.user_id = ? and ru.room_id = id))) as newMsg from RoomUser ru2 Join Room r on r.room_id=ru2.room_id where ru2.user_id = ?', [res.id, res.id], (err, db_res)=>{
+                                db.query('select r.room_name as name, r.room_id as id, (Select count(m.msg_id) from Message m where m.room_id = id and (m.sent_at > (Select lastVisited from RoomUser ru where ru.user_id = ? and ru.room_id = id))) as newMsg from RoomUser ru2 Join Room r on r.room_id=ru2.room_id where ru2.user_id = ? and ru2.status=1', [res.id, res.id], (err, db_res)=>{
                                     if(err) console.log(err);
                                     else{
                                         PubSub.unsubscribe(subscriber);
-                                        let temp = {rooms:[], type: "joinedRooms"};
+                                        let temp = {newRoom: true, rooms:[], type: "joinedRooms"};
                                         for(let i=0; i<db_res.length; i++) {
                                             subscriptions[i] = db_res[i]['id'];
                                             tokens[i] = PubSub.subscribe(db_res[i]['id'], subscriber);
                                             temp["rooms"][i] = db_res[i];
                                         }
-                                        db.query("insert into Message (room_id, sender_id) values ((Select ru.room_id from RoomUser ru where ru.inviteCode=?), ?)", [parsedData['inviteCode'], res.id], (err, temp2)=>{
+                                        db.query("Insert into Message (room_id, sender_id) values ((Select ru.room_id from RoomUser ru where ru.inviteCode=?), ?)", [parsedData['inviteCode'], res.id], (err, temp2)=>{
                                             if(err) console.log(err);
                                             else{
-                                                db.query("Select u.username as name, u.color, u.pfp, ru.room_id as id r.room_name as rName From RoomUser ru Join User u on ru.user_id=u.user_id Join Room r on ru.room_id=r.room_id Where joinedBy = ? and ru.user_id = ?",[parsedData['inviteCode'], res.id],(err, temp3)=>{
-                                                    PubSub.publish(temp3[0]["id"], JSON.stringify({newUser: true, sender: temp3[0]['name'], color: temp3[0]["color"], pfp:temp3[0]["pfp"], room: temp3[0]['id'], roomName: db_res[0]["rName"], type: "newMsg"}))
+                                                db.query("Select u.username as name, u.color, u.pfp, ru.room_id as id, r.room_name as rName From RoomUser ru Join User u on ru.user_id=u.user_id Join Room r on ru.room_id=r.room_id Where joinedBy = ? and ru.user_id = ? and ru.status=1",[parsedData['inviteCode'], res.id],(err, temp3)=>{
+                                                    if(err) console.log(err);
+                                                    else PubSub.publish(temp3[0]["id"], JSON.stringify({newUser: true, sender: temp3[0]['name'], color: temp3[0]["color"], pfp:temp3[0]["pfp"], room: temp3[0]['id'], roomName: db_res[0]["rName"], type: "newMsg"}))
                                                 })
                                             }
                                         });
@@ -257,9 +310,19 @@ app.ws('/api/ws',(ws, req)=>{
                     })
                     break;
                 }
-                case 'createRoom':{
+                case 'leaveRoom':{ // {room: roomid}
+                    db.query("Select owner from Room where room_id = ?", [parsedData["room"]], (err, db_res)=>{
+                        if(err) console.log(err);
+                        else if(db_res[0]["owner"]!=res.id){
+                            db.query("Update RoomUser set status=2 where room_id = ? and user_id = ?", [parsedData["room"], res.id]);
+                            ws.send(JSON.stringify({type: "clearChat", room: parsedData["room"]}));
+                        }
+                    })
+                    break;
+                }
+                case 'createRoom':{// {roomName: text, expires: date, secure: bool}
                     let gen_uuid = uuidv4();
-                    db.query("Insert into Room (room_id, room_name, owner) Values (?, ?, ?)", [gen_uuid, parsedData['roomName'], res.id], (err, temp1)=>{
+                    db.query("Insert into Room (room_id, room_name, owner, expires, secure) Values (?, ?, ?, ?, ?)", [gen_uuid, parsedData['roomName'], res.id, parsedData["expires"], parsedData["secure"]], (err, temp1)=>{
                         if(err) console.log(err);
                         else db.query("Insert into RoomUser (room_id, user_id) Values (?, ?)", [gen_uuid, res.id], (err, temp2)=>{
                             if(err) console.log(err);
@@ -269,7 +332,7 @@ app.ws('/api/ws',(ws, req)=>{
                                     if(err) console.log(err);
                                     else{
                                         PubSub.unsubscribe(subscriber);
-                                        let temp = {rooms:[], type: "joinedRooms"};
+                                        let temp = {rooms:[], type: "joinedRooms", newRoom: true};
                                         for(let i=0; i<db_res.length; i++) {
                                             subscriptions[i] = db_res[i]['id'];
                                             tokens[i] = PubSub.subscribe(db_res[i]['id'], subscriber);
@@ -282,13 +345,14 @@ app.ws('/api/ws',(ws, req)=>{
                         })
                     });
                 }
-                case 'deleteRoom':{
-                    db.query("Select * from Room where owner = ? and room_id = ? and room_name = ?", [res.id, parsedData["room"], parsedData["roomName"]], (err, db_res)=>{
+                case 'deleteRoom':{ // parsedData -> {room: id}
+                    db.query("Select room_id from Room where owner = ? and room_id = ?", [res.id, parsedData["room"]], (err, db_res)=>{
                         if(err) console.err;
                         else if(db_res.length>0) db.query("Delete from Room where room_id = ?", [parsedData["room"]], (err, temp)=>{
                             if(err) console.err;
                             else{
-                                ws.send(JSON.stringify({message: "Deleted room", status: 200}));
+                                ws.send(JSON.stringify({type: "roomDeleted"}));
+                                PubSub.publish(parsedData["room"], JSON.stringify({type: "roomDeleted"}));
                                 PubSub.unsubscribe(parsedData["room"]);
                                 db.query('select r.room_name as name, r.room_id as id, (Select count(m.msg_id) from Message m where m.room_id = id and (m.sent_at > (Select lastVisited from RoomUser ru where ru.user_id = ? and ru.room_id = id))) as newMsg from RoomUser ru2 Join Room r on r.room_id=ru2.room_id where ru2.user_id = ?', [res.id, res.id], (err, db_res)=>{
                                     if(err) console.log(err);
@@ -303,6 +367,7 @@ app.ws('/api/ws',(ws, req)=>{
                                 });
                             }
                         })
+
                     })
                 }
                 case 'getInviteCode':{
@@ -310,6 +375,17 @@ app.ws('/api/ws',(ws, req)=>{
                         if(err) console.log(err);
                         else if(db_res.length>0) ws.send(JSON.stringify({inviteCode: db_res[0]["inviteCode"], type: "inviteCode"}));
                     });
+                    break;
+                }
+                case 'kickSingle':{
+                    db.query("Select room_id from Room where owner = ? and room_id = ?", [res.id, parsedData["room"]], (err, db_res)=>{
+                        if(err) console.log(err);
+                        else if(db_res.length>0){
+                            db.query("Update RoomUser Set status=2 Where room_id = ? and user_id = ?", [parsedData["room"], parsedData["user"]]);
+                            PubSub.publish(parsedData["room"], JSON.stringify({action: "kicked", type: "userAction"}));
+                            PubSub.publish(parsedData["room"]+"."+parsedData["user"], JSON.stringify({type: "clearChat", room: parsedData["room"]}));
+                        }
+                    })
                     break;
                 }
             }
@@ -373,8 +449,8 @@ app.post("/api/linkType", (req, res)=>{
                 res_url=>{
                     switch(res_url.headers.get("Content-type").split("/")[0]){
                         case "audio": res.json({parsed: "<br/><audio controls src="+req.body["url"]+" /><br/>"}); break;
-                        case "video": res.json({parsed: "<br/><video style='max-width: 80%; max-height: 80%' controls><source onload=\"scrollBottomImg(this)\" src="+req.body["url"]+"></video><br/>"}); break;
-                        case "image": res.json({parsed: "<br/><img onload=\"scrollBottomImg(this)\" style='max-width: 80%; max-height: 80%' src="+req.body["url"]+" /><br/>"}); break;
+                        case "video": res.json({parsed: "<br/><video style='max-width: 80%; max-height: 80%' controls loaded=\"scrollToBottom()\" ><source src="+req.body["url"]+"></video><br/>"}); break;
+                        case "image": res.json({parsed: "<br/><img onload=\"scrollToBottom()\" style='max-width: 80%; max-height: 80%' src="+req.body["url"]+" /><br/>"}); break;
                         default: {res.json({parsed: "<a href="+req.body["url"]+">"+req.body["url"]+"</a>"})}
                     }
                 },
@@ -425,14 +501,9 @@ app.post("/api/auth/logout", (req, res)=>{
     jwt.verify(req.signedCookies['refreshToken'], jwtRefSecret, (err, result)=>{
         if(err) console.log(err);
         else {
-            db.query("Delete from RefreshToken Where token = ? and user_id = ?", [req.signedCookies['refreshToken'], result.id], (err)=>{
-                if(err) console.log(err);
-                else{
-                    res.clearCookie("accessToken");
-                    res.clearCookie("refreshToken");
-                    res.status(200).send("Logout successful");
-                }
-            })
+            res.clearCookie("accessToken");
+            res.clearCookie("refreshToken");
+            res.status(200).send("Logout successful");
         }
     })
 })
@@ -447,32 +518,14 @@ app.post("/api/auth/refreshToken", (req, res)=>{
         else{
             let genAccessTok = jwt.sign({id: result.id}, jwtAccSecret, {expiresIn: '10m'});
             let genRefreshTok = jwt.sign({id: result.id}, jwtRefSecret, {expiresIn: '7d'});
-            //console.log(genRefreshTok + " " + req.signedCookies['refreshToken'])
-            db.query("Delete from RefreshToken Where token = ? and user_id = ?", [req.signedCookies['refreshToken'], result.id], (err, temp1)=>{
-                if(err) console.log(err);
-                else db.query("Insert Into RefreshToken Value (?, ?, Date_Add(now(), INTERVAL 1 week) )", [result.id, genRefreshTok], (err, temp2)=>{ 
-                    if(err) console.log(err);
-                    else{
-                        res.cookie('accessToken', genAccessTok, {signed: true, secure: true, overwrite: true, sameSite: "lax"});
-                        res.cookie('refreshToken', genRefreshTok, {signed: true, secure: true, overwrite: true, sameSite: "lax"});
-                        res.send("cookie");
-                    }
-                });
-            })
-            
+            res.cookie('accessToken', genAccessTok, {signed: true, secure: true, overwrite: true, sameSite: "lax"});
+            res.cookie('refreshToken', genRefreshTok, {signed: true, secure: true, overwrite: true, sameSite: "lax"});
+            res.send("cookie");  
         }
     })
 })
 
 app.post("/api/auth/register", (req, res)=>{
-    if(req.signedCookies['refreshToken']){
-        jwt.verify(req.signedCookies['refreshToken'], jwtRefSecret, (err, result)=>{
-            if(err) console.log(err);
-            else db.query("Delete from RefreshToken Where token = ? and user_id = ?", [req.signedCookies['refreshToken'], result.id], (err)=>{
-                if(err) console.log(err);
-            })
-        });
-    }
     if(req.body.username != "" && validator.is_email_valid(req.body.email) && req.body.password != ""){
         db.query("Select * From User Where username=? or email=?", [req.body.username, req.body.email], (err, db_result)=>{
             if(err) console.log(err);
@@ -489,7 +542,6 @@ app.post("/api/auth/register", (req, res)=>{
                                 else{
                                     let genAccessTok = jwt.sign({id: userDb[0]['user_id']}, jwtAccSecret, {expiresIn: '10m'});
                                     let genRefreshTok = jwt.sign({id: userDb[0]['user_id']}, jwtRefSecret, {expiresIn: '7d'});
-                                    db.query("Insert Into RefreshToken Value (?, ?, Date_Add(now(), INTERVAL 1 week) )", [userDb[0]['user_id'], genRefreshTok]);
                                     res.cookie('accessToken', genAccessTok, {signed: true, secure: true, overwrite: true, sameSite: "lax"});
                                     res.cookie('refreshToken', genRefreshTok, {signed: true, secure: true, overwrite: true, sameSite: "lax"});
                                     res.status(200).send("Register successful");
@@ -514,16 +566,6 @@ app.post("/api/auth/login", (req, res)=>{
             console.log(hash);
         })
     })*/
-    if(req.signedCookies['refreshToken']){
-        jwt.verify(req.signedCookies['refreshToken'], jwtRefSecret, (err, result)=>{
-            if(err) console.log(err);
-            else{
-                db.query("Delete from RefreshToken Where token = ? and user_id = ?", [req.signedCookies['refreshToken'], result.id], (err)=>{
-                    if(err) console.log(err);
-                })
-            }
-        });
-    }
     if(req.body.password != "" && req.body.username != ""){
         db.query("Select password, user_id From User Where username=?", [req.body.username], (err, db_result)=>{
             if(err) console.log(err);
@@ -532,7 +574,6 @@ app.post("/api/auth/login", (req, res)=>{
                     if(crypt_res){
                         let genAccessTok = jwt.sign({id: db_result[0]['user_id']}, jwtAccSecret, {expiresIn: '10m'});
                         let genRefreshTok = jwt.sign({id: db_result[0]['user_id']}, jwtRefSecret, {expiresIn: '7d'});
-                        db.query("Insert Into RefreshToken Value (?, ?, Date_Add(now(), INTERVAL 1 week) )", [db_result[0]['user_id'], genRefreshTok]);
                         res.cookie('accessToken', genAccessTok, {signed: true, secure: true, overwrite: true, sameSite: "lax"});
                         res.cookie('refreshToken', genRefreshTok, {signed: true, secure: true, overwrite: true, sameSite: "lax"});
                         res.status(200).send("Login successful");

@@ -9,7 +9,20 @@ let loadingMsgs = false;
 let noMoreMsgs = false;
 let cropper = '';
 let loadedMsgs = 0;
+let modals = {};
   
+function temp(){
+    generateToast("Sorry! Feature not yet implemented.", "bg-danger", "Warning")
+}
+
+function openModal(id){
+    modals[id].show()
+}
+
+function closeModal(id){
+    modals[id].hide();
+}
+
 function onlyUnique(value, index, array) {
     return array.indexOf(value) === index;
 }
@@ -79,8 +92,7 @@ function gotoSettings(){
 
 function closeSettings(){
     if(changedSettings){
-        let closeSettingsModal = new bootstrap.Modal("#closeSettingsModal", {getInstance: true})
-        closeSettingsModal.show()
+        modals["closeSettings"].show()
     }
     else{
         document.getElementById("settings").style.display="none";
@@ -115,15 +127,6 @@ function changeSettings(){
     changedSettings = true;
 }
 
-function confirmSettings(){
-    let confSettingsModal = new bootstrap.Modal(document.getElementById('confirmSettingsModal'), {getInstance: true})
-    confSettingsModal.show()
-}
-
-function closeConfirmSettings(){
-    let confSettingsModal = new bootstrap.Modal(document.getElementById('confirmSettingsModal'), {getInstance: true})
-    confSettingsModal.hide()
-}
 
 function saveSettings(){
     if(changedSettings && document.getElementById("S_userName").value!=""){
@@ -149,7 +152,7 @@ function saveSettings(){
                     changedSettings = false;
                     document.getElementById("changedSettings").style.display = "none";
                     pfpLock = false;
-                    closeConfirmSettings();
+                    closeModal("confirmCloseSettings");
                     break;
                 case 401: generateToast("Incorrect password", "bg-danger", "Warning"); break;
                 default: console.log(res);
@@ -169,6 +172,7 @@ function savePfp(){
         heigh: 300
     }).toDataURL();
     document.getElementById("S_pfp").src = imgSrc;   
+    closeModal('editPfp');
 }
 
 function deletePfp(){
@@ -178,7 +182,7 @@ function deletePfp(){
 }
 
 function deleteRoom(){
-
+    socket.send(JSON.stringify({type: "deleteRoom", room: current_room}));
 }
 
 function toggleInput(id){
@@ -203,8 +207,23 @@ function logout(){
 function create(){
     let name = document.getElementById("createRoomName").value;
     if(!(name==""||name==null)){
-        socket.send(JSON.stringify({roomName: name, type: "createRoom"}));
+        socket.send(JSON.stringify({roomName: name, type: "createRoom", secure: document.getElementById("createRoomSecure").checked, expires: document.getElementById("createRoomExpires").checked ? document.getElementById("createRoomExpireDate").value : null}));
     }
+}
+
+function openCreate(){
+    document.getElementById("createRoomName").value = "";
+    document.getElementById("createRoomExpires").checked = false;
+    document.getElementById("createRoomExpireDate").valueAsDate = new Date();
+    document.getElementById("createRoomExpireDate").style.display = "none";
+    modals["createRoom"].show();
+}
+
+function toggleDatePicker(check){
+    let datePicker = document.getElementById("createRoomExpireDate");
+    datePicker.style.display = check.checked ? "" : "none";
+    datePicker.valueAsDate = new Date();
+    datePicker.min = datePicker.value;
 }
 
 function join(){
@@ -212,6 +231,10 @@ function join(){
     if(!(code==""||code==null)){
         socket.send(JSON.stringify({inviteCode: code, type: "joinRoom"}));
     }
+}
+
+function leaveRoom(){
+    socket.send(JSON.stringify({type: "leaveRoom", room: current_room}))
 }
 
 function copyInvite(){
@@ -280,7 +303,8 @@ function generateMsg(msg){
     div.children[1].style.color = msg["color"];
     div.children[1].innerText = msg["newUser"] ? msg["sender"] : msg["sender"]+": ";
     div.children[2].children[0].innerHTML = msg["newUser"] ? " has joined the room." : msg['msg'];
-    div.children[3].children[0].children[0].innerText = new Date(msg["sent_at"]).toLocaleString("sl-SI");
+    div.children[3].children[0].children[2].innerText = new Date(msg["sent_at"]).toLocaleString("sl-SI");
+    div.children[3].children[0].children[0].style.display = msg["msgOwner"]=="true" ? "" : "none";
     urlify(div.children[2].innerHTML, div.children[2].children[0])
     return div;
 }
@@ -299,6 +323,9 @@ function generateSettingsMember(user){
     if(user["pfp"]!=null) div.children[1].src = user["pfp"];
     div.children[2].style.color = user["color"];
     div.children[2].innerText = user["username"];
+    div.children[4].children[0].addEventListener("click", ()=>{
+        socket.send(JSON.stringify({room: current_room, user: user["id"], type: "kickSingle"}))
+    });
     return div;
 }
 
@@ -328,7 +355,7 @@ function focusSend(){
 
 function sendMsg(){
     const text_field = document.getElementById("chatMsg");
-    if(text_field.value.trim()!="" && text_field.value.length < 65000 && current_room!="") {
+    if(text_field.value.trim()!="" && text_field.value.length < 10000 && current_room!="") {
         socket.send(JSON.stringify({msg: text_field.value.trim(), room: current_room, type:"sendMsg"}))
         text_field.value="";
     }
@@ -364,6 +391,7 @@ function connectSocket(){
 
                 document.getElementById("userName").innerText = parsedData["username"];
                 document.getElementById("userName").style.color = parsedData["color"];
+                document.getElementById("userName").parentElement.style.color = parsedData["color"];
                 if(parsedData["pfp"]!=null){
                     document.getElementById("pfp").src = parsedData["pfp"];
                     document.getElementById("S_pfp").src = !pfpLock ? parsedData["pfp"] : document.getElementById("S_pfp").src;
@@ -375,8 +403,12 @@ function connectSocket(){
                 parsedData["rooms"].forEach(room => {
                     joinedRooms.appendChild(generateRoomButton(room));
                 });
+                if(parsedData["newRoom"]){
+                    modals["createRoom"].hide();
+                    modals["joinRoom"].hide();
+                }
                 break;
-            case "freshUsers":
+            case "freshData":
                 while(joinedUsers.firstChild) joinedUsers.removeChild(joinedUsers.lastChild);
                 parsedData["members"].forEach((user)=>{
                     joinedUsers.appendChild(generateMember(user));
@@ -388,6 +420,7 @@ function connectSocket(){
                 while(joinedUsers.firstChild) joinedUsers.removeChild(joinedUsers.lastChild);
                 while(RS_joinedUsers.firstChild) RS_joinedUsers.removeChild(RS_joinedUsers.lastChild);
                 document.getElementById("roomSettingsBtn").style.display = parsedData["owner"] ? "" : "none";
+                document.getElementById("leaveBtn").style.display = parsedData["owner"] ? "none" : "";
                 document.getElementById("roomName").innerText=parsedData["roomName"];
                 document.getElementById(parsedData["room"]).children[0].style.display="none";
                 document.getElementById(parsedData["room"]).children[0].innerText = 0;
@@ -410,12 +443,12 @@ function connectSocket(){
                 });
                 if(parsedData["owner"]){
                     parsedData["members"].forEach((user)=>{
-                        RS_joinedUsers.append(generateSettingsMember(user));
+                        if(!user["owner"]) RS_joinedUsers.append(generateSettingsMember(user));
                     });
                     document.getElementById("roomSetName").value = parsedData["roomName"];
                 }
                 let isLoaded = setInterval(()=>{
-                    if(loadedMsgs==parsedData["messages"].length){
+                    if(loadedMsgs>=parsedData["messages"].length){
                         //chatbox.scrollTop = chatbox.scrollHeight - chatbox.clientHeight;
                         chatbox.scrollTop = chatbox.scrollHeight*2;
                         loadingChat.style.display = "none"
@@ -438,6 +471,17 @@ function connectSocket(){
                 });
                 chatbox.scrollHeight = temp;
                 break;
+            case "roomDeleted":{
+                while(chatbox.firstChild) chatbox.removeChild(chatbox.lastChild);
+                while(joinedUsers.firstChild) joinedUsers.removeChild(joinedUsers.lastChild);
+                current_room=""
+                modals["deleteRoom"].hide();
+                document.getElementById("roomName").innerText="";
+                document.getElementById("roomSettingsBtn").style.display = "none";
+                document.getElementById("leaveBtn").style.display = "none";
+                closeRoomSettings();
+                break;
+            }
             case "newMsg":
                 if(current_room==parsedData['room']){
                     const isScrolledToBottom = chatbox.scrollHeight - chatbox.clientHeight <= chatbox.scrollTop + 1;
@@ -448,6 +492,7 @@ function connectSocket(){
                       chatbox.scrollTop = chatbox.scrollHeight - chatbox.clientHeight;
                     }
                     socket.send(JSON.stringify({room: parsedData['room'], type: "recieved"}));
+                    if(parsedData["newUser"]) socket.send(JSON.stringify({id: parsedData['room'], type: "refreshData"}));
                 }else {
                     document.getElementById(parsedData["room"]).children[0].style.display="";
                     document.getElementById(parsedData["room"]).children[0].innerText = Number(document.getElementById(parsedData["room"]).children[0].innerText)+1;
@@ -456,9 +501,17 @@ function connectSocket(){
                 break;
             case "userAction":
                 if(current_room == parsedData["id"])
-                socket.send(JSON.stringify({id: parsedData["id"], type: "refreshUsers"}))
+                    socket.send(JSON.stringify({id: parsedData["id"], type: "refreshData"}))
                 break;
-            default: console.log(parsedData);
+            case "clearChat": // {room: roomid}
+                while(chatbox.firstChild) chatbox.removeChild(chatbox.lastChild);
+                while(joinedUsers.firstChild) joinedUsers.removeChild(joinedUsers.lastChild);
+                if(parsedData["room"]) document.getElementById(parsedData["room"]).remove();
+                current_room="";
+                document.getElementById("roomName").innerText="";
+                document.getElementById("roomSettingsBtn").style.display = "none";
+                document.getElementById("leaveBtn").style.display = "none";
+                break;
         }
         switch(parsedData['statusCode']){
             case 401: 
@@ -474,7 +527,7 @@ function connectSocket(){
 
 document.getElementById("pfp_upload").addEventListener('change', e=>{
     if(e.target.files.length){
-        const modal = new bootstrap.Modal('#editPfp', {});
+        const modal = new bootstrap.Modal('#editPfp', {getInstance: true});
         modal.show()
         //document.getElementById("editPfp")
         const reader = new FileReader();
@@ -535,5 +588,15 @@ document.getElementById("uploadFile").addEventListener('change', e=>{
 })
 
 document.addEventListener("DOMContentLoaded", ()=>{
+    const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+    const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+    modals = {
+        "createRoom": new bootstrap.Modal("#createRoomModal"),
+        "deleteRoom": new bootstrap.Modal("#deleteRoomModal"),
+        "confirmSettings": new bootstrap.Modal("#confirmSettingsModal"),
+        "closeSettings": new bootstrap.Modal("#closeSettingsModal"),
+        "editPfp": new bootstrap.Modal("#editPfpModal"),
+        "joinRoom": new bootstrap.Modal("#joinRoomModal"),
+    }
     connectSocket();
 })
