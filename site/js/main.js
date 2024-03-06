@@ -299,12 +299,16 @@ function generateRoomButton(room){
 
 function generateMsg(msg){
     let div = document.getElementById("tempMsg").content.cloneNode(true).children[0];
+    div.id = msg["id"];
     if(msg["pfp"]!=null) div.children[0].src = msg["pfp"];
     div.children[1].style.color = msg["color"];
     div.children[1].innerText = msg["newUser"] ? msg["sender"] : msg["sender"]+": ";
     div.children[2].children[0].innerHTML = msg["newUser"] ? " has joined the room." : msg['msg'];
     div.children[3].children[0].children[2].innerText = new Date(msg["sent_at"]).toLocaleString("sl-SI");
     div.children[3].children[0].children[0].style.display = msg["msgOwner"]=="true" ? "" : "none";
+    div.children[3].children[0].children[1].children[1].addEventListener("click", ()=>{
+        socket.send(JSON.stringify({type: "deleteMsg", id: msg["id"]}));
+    })
     urlify(div.children[2].innerHTML, div.children[2].children[0])
     return div;
 }
@@ -324,8 +328,12 @@ function generateSettingsMember(user){
     div.children[2].style.color = user["color"];
     div.children[2].innerText = user["username"];
     div.children[4].children[0].addEventListener("click", ()=>{
-        socket.send(JSON.stringify({room: current_room, user: user["id"], type: "kickSingle"}))
+        socket.send(JSON.stringify({room: current_room, users: [user["id"]], type: "alterUsers", action: true}))
     });
+    div.children[4].children[1].addEventListener("click", ()=>{
+        socket.send(JSON.stringify({room: current_room, users: [user["id"]], type: "alterUsers", action: false}))
+    });
+    div.children[5].value = user["id"];
     return div;
 }
 
@@ -359,6 +367,15 @@ function sendMsg(){
         socket.send(JSON.stringify({msg: text_field.value.trim(), room: current_room, type:"sendMsg"}))
         text_field.value="";
     }
+}
+
+function alterSelected(which){
+    let users = document.getElementById("RS_joinedUsers");
+    let temp = {users: [], type: "alterUsers", action: which ? true : false , room: current_room};
+    for(let user of users.children){
+        if(user.children[0].checked) temp["users"].push(user.children[5].value);
+    }
+    socket.send(JSON.stringify(temp));
 }
 
 function connectSocket(){
@@ -410,9 +427,15 @@ function connectSocket(){
                 break;
             case "freshData":
                 while(joinedUsers.firstChild) joinedUsers.removeChild(joinedUsers.lastChild);
+                while(RS_joinedUsers.firstChild) RS_joinedUsers.removeChild(RS_joinedUsers.lastChild);
                 parsedData["members"].forEach((user)=>{
                     joinedUsers.appendChild(generateMember(user));
                 });
+                if(parsedData["owner"]){
+                    parsedData["members"].forEach((user)=>{
+                        if(!user["owner"]) RS_joinedUsers.append(generateSettingsMember(user));
+                    });
+                }
                 break;
             case "getRoom":
                 loadingChat.style.display = "flex"
@@ -459,8 +482,7 @@ function connectSocket(){
                         focusSend();
                         clearInterval(isLoaded);
                     }else document.getElementById("loadingProgress").style.width = loadedMsgs/parsedData["messages"].length*100+"%";
-                }, 100)
-                
+                }, 100);
                 break;
             case "getMoreRoom":
                 loadingMsgs = false;
@@ -500,8 +522,16 @@ function connectSocket(){
                 }
                 break;
             case "userAction":
-                if(current_room == parsedData["id"])
-                    socket.send(JSON.stringify({id: parsedData["id"], type: "refreshData"}))
+                if(current_room == parsedData["id"]){
+                    switch(parsedData["action"]){
+                        case "msgDelete":{
+                            document.getElementById(parsedData["msgId"]).remove();
+                            break;
+                        }
+                    }
+                    socket.send(JSON.stringify({id: parsedData["id"], type: "refreshData"}));
+                }
+                    
                 break;
             case "clearChat": // {room: roomid}
                 while(chatbox.firstChild) chatbox.removeChild(chatbox.lastChild);
@@ -515,12 +545,16 @@ function connectSocket(){
         }
         switch(parsedData['statusCode']){
             case 401: 
-                    fetch(domain+'/auth/refreshToken',{method: "POST", credentials: 'include'}).then((res)=>{
-                        if(res.status==401) window.location.href = "https://chat.mikmik.xyz/login";
-                        socket.close();
-                        //connectSocket();
+                fetch(domain+'/auth/refreshToken',{method: "POST", credentials: 'include'}).then((res)=>{
+                    if(res.status==401) window.location.href = "https://chat.mikmik.xyz/login";
+                    socket.close();
+                    //connectSocket();
                 });
                 break;
+            case 403:{
+                generateToast(parsedData["msg"], "bg-danger", "Warning!")
+                break;
+            }
         }
     }
 }
