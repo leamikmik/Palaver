@@ -337,6 +337,17 @@ function generateSettingsMember(user){
     return div;
 }
 
+function generateBannedSettingsMember(user){
+    let div = document.getElementById("tempSettingsBannedMember").content.cloneNode(true).children[0];
+    if(user["pfp"]!=null) div.children[0].src = user["pfp"];
+    div.children[1].style.color = user["color"];
+    div.children[1].innerText = user["username"];
+    div.children[2].addEventListener("click", ()=>{
+        socket.send(JSON.stringify({room: current_room, user: user["id"], type: "unbanUser"}));
+    });
+    return div
+}
+
 function scrollToTop(){
     const chatbox = document.getElementById("chatbox");
     if(chatbox.scrollTop<50 && !loadingMsgs && !noMoreMsgs){
@@ -375,13 +386,14 @@ function alterSelected(which){
     for(let user of users.children){
         if(user.children[0].checked) temp["users"].push(user.children[5].value);
     }
-    socket.send(JSON.stringify(temp));
+    if(temp["users"].length>0) socket.send(JSON.stringify(temp));
 }
 
 function connectSocket(){
     const joinedRooms = document.getElementById("joinedRooms");
     const joinedUsers = document.getElementById("joinedUsers")
     const RS_joinedUsers = document.getElementById("RS_joinedUsers");
+    const RS_bannedUsers = document.getElementById("RS_bannedUsers");
     const chatbox = document.getElementById("chatbox");
     const inviteCode = document.getElementById("inviteCode");
     const loadingChat = document.getElementById("loadingChat");
@@ -428,12 +440,14 @@ function connectSocket(){
             case "freshData":
                 while(joinedUsers.firstChild) joinedUsers.removeChild(joinedUsers.lastChild);
                 while(RS_joinedUsers.firstChild) RS_joinedUsers.removeChild(RS_joinedUsers.lastChild);
+                while(RS_bannedUsers.firstChild) RS_bannedUsers.removeChild(RS_bannedUsers.lastChild);
                 parsedData["members"].forEach((user)=>{
-                    joinedUsers.appendChild(generateMember(user));
+                    if(!user["banned"])joinedUsers.appendChild(generateMember(user));
                 });
                 if(parsedData["owner"]){
                     parsedData["members"].forEach((user)=>{
-                        if(!user["owner"]) RS_joinedUsers.append(generateSettingsMember(user));
+                        if(!user["owner"] && !user["banned"]) RS_joinedUsers.append(generateSettingsMember(user));
+                        else if(user["banned"]) RS_bannedUsers.append(generateBannedSettingsMember(user));
                     });
                 }
                 break;
@@ -442,6 +456,7 @@ function connectSocket(){
                 while(chatbox.firstChild) chatbox.removeChild(chatbox.lastChild);
                 while(joinedUsers.firstChild) joinedUsers.removeChild(joinedUsers.lastChild);
                 while(RS_joinedUsers.firstChild) RS_joinedUsers.removeChild(RS_joinedUsers.lastChild);
+                while(RS_bannedUsers.firstChild) RS_bannedUsers.removeChild(RS_bannedUsers.lastChild);
                 document.getElementById("roomSettingsBtn").style.display = parsedData["owner"] ? "" : "none";
                 document.getElementById("leaveBtn").style.display = parsedData["owner"] ? "none" : "";
                 document.getElementById("roomName").innerText=parsedData["roomName"];
@@ -462,11 +477,12 @@ function connectSocket(){
                     chatbox.prepend(generateMsg(msg));
                 });
                 parsedData["members"].forEach((user)=>{
-                    joinedUsers.append(generateMember(user));
+                    if(!user["banned"])joinedUsers.append(generateMember(user));
                 });
                 if(parsedData["owner"]){
                     parsedData["members"].forEach((user)=>{
-                        if(!user["owner"]) RS_joinedUsers.append(generateSettingsMember(user));
+                        if(!user["owner"] && !user["banned"]) RS_joinedUsers.append(generateSettingsMember(user));
+                        else if(user["banned"]) RS_bannedUsers.append(generateBannedSettingsMember(user));
                     });
                     document.getElementById("roomSetName").value = parsedData["roomName"];
                 }

@@ -163,6 +163,12 @@
                     <div id="RS_joinedUsers" class="list-group" style="width: 75%;"></div>
                 </div>
                 <hr style="width: 80%; margin: 3% auto;"/>
+                <div style="width: 100%; height: 10%;">
+                    <h1 style="margin-left: 5%; margin-top: 5%;"><b><i>Banned users</i></b></h1>
+                </div>
+                <div style="margin-top: 5%; display: flex; flex-direction: column; align-items: center; max-height: 50%;">
+                    <div id="RS_bannedUsers" class="list-group" style="width: 75%;"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -399,6 +405,13 @@
                 <button class="dropdown-item" disabled>Make owner</button>
             </div>
             <input type="hidden"/>   
+        </div>
+    </template>
+    <template id="tempSettingsBannedMember">
+        <div class="d-flex list-group-item">
+            <img class="pfp"/>
+            <b style="margin: auto 0; max-width: 70%; text-overflow: ellipsis; overflow: hidden;">Username</b> 
+            <button class="btn btn-primary" style="position: absolute; bottom: 10%; right: 2%;">Unban</button>
         </div>
     </template>
 

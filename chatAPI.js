@@ -209,7 +209,7 @@ app.ws('/api/ws',(ws, req)=>{
             }else switch(parsedData['type']){
                 case "refreshData": // {id: roomid}
                     let temp = {members: [], type: "freshData", owner: false};
-                    db.query("Select u.user_id as id, pfp, username, color, active from User u join RoomUser ru on ru.user_id=u.user_id where room_id = ? and status = 1 order by active desc, lower(username)", 
+                    db.query("Select u.user_id as id, pfp, username, color, active, if(status='Banned', true, false) as banned from User u join RoomUser ru on ru.user_id=u.user_id where room_id = ? and status != 2 order by active desc, lower(username)", 
                     [parsedData['id']], (err, db_res)=>{
                         if(err) console.log(err);
                         else db.query("Select owner From Room where room_id = ?", [parsedData["id"]], (err, db_res2)=>{
@@ -252,7 +252,7 @@ app.ws('/api/ws',(ws, req)=>{
                                         if(temp["owner"]) temp['messages'][i]["msgOwner"] = "true";
                                         temp['messages'][i]["msg"] = db_res[i]["msg"] != null ? (temp1[0]["secure"] ? enc.decrypt(temp['messages'][i]["msg"]) : temp['messages'][i]["msg"]).replaceAll("<", "&#60").replaceAll(">", "&#62") : temp['messages'][i]["msg"];
                                     }
-                                    db.query("Select u.user_id as id, pfp, username, color, active from User u join RoomUser ru on ru.user_id=u.user_id where room_id = ? and status=1 order by active desc, lower(username)", [parsedData['id']], (err, db_res2)=>{
+                                    db.query("Select u.user_id as id, pfp, username, color, active, if(status='Banned', true, false) as banned from User u join RoomUser ru on ru.user_id=u.user_id where room_id = ? and status!=2 order by active desc, lower(username)", [parsedData['id']], (err, db_res2)=>{
                                         if(err) console.log(err);
                                         else{
                                             for(let i = 0; i<db_res2.length; i++){
@@ -448,6 +448,18 @@ app.ws('/api/ws',(ws, req)=>{
                                     if(user==parsedData["users"].at(-1)) PubSub.publish(parsedData["room"], JSON.stringify({action: parsedData["action"] ? "kicked" : "banned", type: "userAction", id: parsedData["room"]}));
                                 });
                             }
+                        }
+                    })
+                    break;
+                }
+                case "unbanUser":{// {room: roomid, user: id}
+                    db.query("Select room_id from Room where owner = ? and room_id = ?", [res.id, parsedData["room"]], (err, db_res)=>{
+                        if(err) console.log(err);
+                        else if(db_res.length>0){
+                            db.query("Update RoomUser Set status = 'Out' Where room_id = ? and user_id = ?", [parsedData["room"], parsedData["user"]], (err)=>{
+                                if(err) console.log(err);
+                                else PubSub.publish(parsedData["room"], JSON.stringify({action: "unbanned", type: "userAction", id: parsedData["room"]}));
+                            });
                         }
                     })
                     break;
