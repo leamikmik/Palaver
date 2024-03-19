@@ -208,7 +208,7 @@ app.ws('/api/ws',(ws, req)=>{
                 default: console.log(err); break;
             }else switch(parsedData['type']){
                 case "refreshData": // {id: roomid}
-                    let temp = {members: [], type: "freshData", owner: false};
+                    let temp = {members: [], rooms:[], type: "freshData", id: parsedData["id"], owner: false};
                     db.query("Select u.user_id as id, pfp, username, color, active, if(status='Banned', true, false) as banned from User u join RoomUser ru on ru.user_id=u.user_id where room_id = ? and status != 2 order by active desc, lower(username)", 
                     [parsedData['id']], (err, db_res)=>{
                         if(err) console.log(err);
@@ -219,7 +219,15 @@ app.ws('/api/ws',(ws, req)=>{
                                 temp["members"][i] = db_res[i];
                                 if(db_res[i]["id"]==db_res2[0]["owner"]) temp["members"][i]["owner"] = true;
                             }
-                            ws.send(JSON.stringify(temp));
+                            db.query('select r.room_name as name, r.room_id as id, (Select count(m.msg_id) from Message m where m.room_id = id and (m.sent_at > (Select lastVisited from RoomUser ru where ru.user_id = ? and ru.room_id = id))) as newMsg from RoomUser ru2 Join Room r on r.room_id=ru2.room_id where ru2.user_id = ? and ru2.status=1 order by newMsg desc, ru2.lastVisited desc', [res.id, res.id], (err, db_res)=>{
+                                if(err) console.log(err);
+                                else{
+                                    for(let i=0; i<db_res.length; i++) {
+                                        temp["rooms"][i] = db_res[i];
+                                    }
+                                    ws.send(JSON.stringify(temp));
+                                }
+                            });
                         })
                     });
                     break;
@@ -401,6 +409,18 @@ app.ws('/api/ws',(ws, req)=>{
                         })
                     });
                 }
+                case 'renameRoom':{// {room: roomid, newName: name}
+                    db.query("Select room_id from Room where owner = ? and room_id = ?", [res.id, parsedData["room"]], (err, db_res)=>{
+                        if(err) console.log(err)
+                        else if(db_res.length>0) db.query("Update Room set room_name = ? where room_id = ?", [parsedData["newName"], parsedData["room"]], (err)=>{
+                            if(err) console.log(err);
+                            else{
+                                PubSub.publish(parsedData["room"], JSON.stringify({type: "userAction", action: "roomRename", id: parsedData["room"]}))
+                            }
+                        })
+                    })
+                    break;
+                }
                 case 'deleteRoom':{ // {room: id}
                     db.query("Select room_id from Room where owner = ? and room_id = ?", [res.id, parsedData["room"]], (err, db_res)=>{
                         if(err) console.err;
@@ -462,6 +482,23 @@ app.ws('/api/ws',(ws, req)=>{
                             });
                         }
                     })
+                    break;
+                }
+                case "transOwner":{// {room: roomid, newOwner: userid}
+                    db.query("Select room_id from Room where owner = ? and room_id = ?", [res.id, parsedData["room"]], (err, db_res)=>{
+                        if(err) console.log(err);
+                        else if(db_res.length>0){
+                            db.query("Select user_id from RoomUser where room_id = ? and user_id = ?", [parsedData["room"], parsedData["newOwner"]], (err, db_res)=>{
+                                if(err) console.log(err);
+                                else if(db_res.length>0){
+                                    db.query("Update Room set owner=? where room_id = ?", [parsedData["newOwner"], parsedData["room"]], (err, db_res)=>{
+                                        if(err) console.log(err);
+                                        else PubSub.publish(parsedData["room"], JSON.stringify({action: "changedOwner", type: "userAction", id: parsedData["room"]})); 
+                                    })
+                                }
+                            })
+                        }
+                    });
                     break;
                 }
             }

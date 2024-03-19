@@ -147,8 +147,18 @@
                 <div style="margin: 5% 20%; display: flex; flex-direction: column; align-items: center; justify-content: center;">
                     <input id="roomSetName" disabled type="text" style="width: 100%; font-size: 2em; text-align: center;"/>
                     <div style="font-size: 2.5em; justify-content: space-evenly; display: flex; width: 100%; margin-top: 5%;">
-                        <button class="invis_btn" disabled><i class="bi bi-pencil-square"></i></button>
-                        <button class="invis_btn" onclick="openModal('deleteRoom')"><i class="bi bi-trash3-fill"></i></button>
+                        <button class="invis_btn" onclick="editRoomName(this)">
+                            <i class="bi bi-pencil-square"></i>
+                        </button>
+                        <button class="invis_btn" style="display: none;" onclick="saveRoomName(this)">
+                            <i class="bi bi-check"></i>
+                        </button>
+                        <button class="invis_btn" onclick="openModal('deleteRoom')">
+                            <i class="bi bi-trash3-fill"></i>
+                        </button>
+                        <button class="invis_btn" style="display: none;" onclick="cancelRoomName(this)">
+                            <i class="bi bi-x"></i>
+                        </button>
                     </div>
                 </div>
                 <hr style="width: 80%; margin: 3% auto;"/>
@@ -345,6 +355,29 @@
           </div>
         </div>
     </div>
+    <div class="modal fade" id="transOwnerModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+            </div>
+            <div class="modal-body form-floating">
+                <h3>Do you wish to transfer ownership?</h3>
+                You will no longer be able to change room. <br/>
+                <div style="display: flex; flex-direction: row;"> <b style="margin: auto 4px">New owner:</b>
+                    <div class="card d-flex flex-row" style="background-color: #313b4b; position: relative; width: 50%; height: 3em;">
+                        <img id="TO_pfp" class="pfp"/>
+                        <h5 class="overflow-hidden flex-fill" style="margin: auto 0; text-overflow: ellipsis; white-space: nowrap;"><b id="TO_userName"></b></h5>
+                        <input id="TO_id" type="hidden"/>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('transOwner')">Close</button>
+                <button type="button" class="btn btn-danger" onclick="transOwner()">Transfer</button>
+            </div>
+          </div>
+        </div>
+    </div>
     <template id="tempToast">
         <div class="toast" role="alert" aria-live="assertive" aria-atomic="true">
             <div class="toast-header">
@@ -402,7 +435,7 @@
             <div class="dropdown-menu">
                 <button class="dropdown-item">Kick</button>
                 <button class="dropdown-item">Ban</button>
-                <button class="dropdown-item" disabled>Make owner</button>
+                <button class="dropdown-item">Make owner</button>
             </div>
             <input type="hidden"/>   
         </div>

@@ -1,6 +1,7 @@
 const domain="https://chat.mikmik.xyz/api";
 let socket;
 let current_room = "";
+let current_room_name = "";
 let changedSettings = false;
 let pfpLock = false;
 let settings_proc = false;
@@ -78,6 +79,7 @@ function toggleVisibility(btn){
 function gotoRoomSettings(){
     document.getElementById("roomSettings").style.display="";
     document.getElementById("chatMsg").disabled = true;
+    
 }
 
 function closeRoomSettings(){
@@ -127,6 +129,38 @@ function changeSettings(){
     changedSettings = true;
 }
 
+function editRoomName(el){
+    current_room_name = document.getElementById("roomSetName").value;
+    document.getElementById("roomSetName").disabled = false;
+    el = el.parentElement;
+    el.children[0].style.display = "none";
+    el.children[1].style.display = "";
+    el.children[2].style.display = "none";
+    el.children[3].style.display = "";
+}
+
+function saveRoomName(el){
+    newName = document.getElementById("roomSetName").value;
+    if(newName.trim() !="" && newName.length < 32 && newName!=current_room_name){
+        socket.send(JSON.stringify({type: "renameRoom", newName: newName, room: current_room}));
+        el = el.parentElement;
+        el.children[0].style.display = "";
+        el.children[1].style.display = "none";
+        el.children[2].style.display = "";
+        el.children[3].style.display = "none";
+        document.getElementById("roomSetName").disabled = true;
+    }
+        
+}
+
+function cancelRoomName(el){
+    document.getElementById("roomSetName").value = current_room_name;
+    el = el.parentElement;
+    el.children[0].style.display = "";
+    el.children[1].style.display = "none";
+    el.children[2].style.display = "";
+    el.children[3].style.display = "none";
+}
 
 function saveSettings(){
     if(changedSettings && document.getElementById("S_userName").value!=""){
@@ -333,6 +367,13 @@ function generateSettingsMember(user){
     div.children[4].children[1].addEventListener("click", ()=>{
         socket.send(JSON.stringify({room: current_room, users: [user["id"]], type: "alterUsers", action: false}))
     });
+    div.children[4].children[2].addEventListener("click", ()=>{
+        document.getElementById("TO_pfp").src = user["pfp"];
+        document.getElementById("TO_userName").innerText = user["username"];
+        document.getElementById("TO_userName").style.color = user["color"];
+        document.getElementById("TO_id").value = user["id"];
+        openModal('transOwner');
+    });
     div.children[5].value = user["id"];
     return div;
 }
@@ -346,6 +387,11 @@ function generateBannedSettingsMember(user){
         socket.send(JSON.stringify({room: current_room, user: user["id"], type: "unbanUser"}));
     });
     return div
+}
+
+function transOwner(){
+    socket.send(JSON.stringify({type: "transOwner", room: current_room, newOwner: document.getElementById("TO_id").value}))
+    closeModal("transOwner");
 }
 
 function scrollToTop(){
@@ -436,19 +482,32 @@ function connectSocket(){
                     modals["createRoom"].hide();
                     modals["joinRoom"].hide();
                 }
+                if(current_room!="") document.getElementById(current_room).classList.add("active");
                 break;
             case "freshData":
-                while(joinedUsers.firstChild) joinedUsers.removeChild(joinedUsers.lastChild);
-                while(RS_joinedUsers.firstChild) RS_joinedUsers.removeChild(RS_joinedUsers.lastChild);
-                while(RS_bannedUsers.firstChild) RS_bannedUsers.removeChild(RS_bannedUsers.lastChild);
-                parsedData["members"].forEach((user)=>{
-                    if(!user["banned"])joinedUsers.appendChild(generateMember(user));
-                });
-                if(parsedData["owner"]){
+                if(current_room == parsedData["id"]){
+                    while(joinedUsers.firstChild) joinedUsers.removeChild(joinedUsers.lastChild);
+                    while(RS_joinedUsers.firstChild) RS_joinedUsers.removeChild(RS_joinedUsers.lastChild);
+                    while(RS_bannedUsers.firstChild) RS_bannedUsers.removeChild(RS_bannedUsers.lastChild);
+                    while(joinedRooms.firstChild) joinedRooms.removeChild(joinedRooms.lastChild);
                     parsedData["members"].forEach((user)=>{
-                        if(!user["owner"] && !user["banned"]) RS_joinedUsers.append(generateSettingsMember(user));
-                        else if(user["banned"]) RS_bannedUsers.append(generateBannedSettingsMember(user));
+                        if(!user["banned"])joinedUsers.appendChild(generateMember(user));
                     });
+                    parsedData["rooms"].forEach(room => {
+                        joinedRooms.appendChild(generateRoomButton(room));
+                        if(room["id"]==current_room) document.getElementById("roomName").innerText= room["name"];
+                    });
+                    if(current_room!="") document.getElementById(current_room).classList.add("active");
+                    document.getElementById("roomSettingsBtn").style.display = parsedData["owner"] ? "" : "none";
+                    document.getElementById("leaveBtn").style.display = parsedData["owner"] ? "none" : "";
+                    if(parsedData["owner"]){
+                        parsedData["members"].forEach((user)=>{
+                            if(!user["owner"] && !user["banned"]) RS_joinedUsers.append(generateSettingsMember(user));
+                            else if(user["banned"]) RS_bannedUsers.append(generateBannedSettingsMember(user));
+                        });
+                    } else if(document.getElementById("roomSettings").style.display == ""){
+                        document.getElementById("roomSettings").style.display = "none";
+                    }
                 }
                 break;
             case "getRoom":
@@ -492,7 +551,7 @@ function connectSocket(){
                         chatbox.scrollTop = chatbox.scrollHeight*2;
                         loadingChat.style.display = "none"
                         document.getElementById("msgInput").style.display = "flex";
-                        document.getElementById("chatMsg").disabled = false;
+                        document.getElementById("chatMsg").disabled = document.getElementById("roomSettings").style.display == "" ;
                         document.getElementById("chat").display="flex";
                         document.getElementById("loadingProgress").style.width = "0%";
                         focusSend();
@@ -647,6 +706,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
         "closeSettings": new bootstrap.Modal("#closeSettingsModal"),
         "editPfp": new bootstrap.Modal("#editPfpModal"),
         "joinRoom": new bootstrap.Modal("#joinRoomModal"),
+        "transOwner": new bootstrap.Modal("#transOwnerModal")
     }
     connectSocket();
 })
