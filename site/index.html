@@ -6,7 +6,7 @@
     <title>Palaver</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link rel="stylesheet" href="./css/style2.css">
+    <link rel="stylesheet" href="./css/style.css">
     <link rel="apple-touch-icon" sizes="180x180" href="./images/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="32x32" href="./images/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="./images/favicon-16x16.png">
@@ -19,7 +19,7 @@
 <body data-bs-theme="dark" class="d-flex" onkeydown="focusSend()">
     <div id="sidebar" class="rounded">
         <div style="margin: 1%; color: #b57edc; font-family: 'Lemon';">
-            <a href="https://chat.mikmik.xyz/" style="text-decoration: none; color: inherit; display: flex;">
+            <a href="https://chat.mikmik.xyz/" style="text-decoration: none; color: inherit; display: flex; margin-left: 8px;">
                 <img src="./images/palaver.png" style="width: 3em; height: 3em; margin: auto 0;"/>
                 <h1 style="margin: auto 0;">Palaver</h1>
             </a>
@@ -59,8 +59,9 @@
             <button class="invis_btn" style="margin: auto 5%;" onclick="gotoSettings()"><i class="bi bi-gear-fill"></i></button>
         </div>
     </div>
-
+    
     <div id="chat" style="display: flex; flex-direction: column;">
+        <i id="freshSite" style="position: absolute; top: 50%; left: 55%;">Select a room.</i>
         <div style="width: 100%; height: 7%; background-color: #313b4b; display: flex; flex-direction: row;" class="shadow-lg rounded">
             <h2 id="roomName" class="flex-fill" style="margin: auto 1%;"></h2>
             <button id="roomSettingsBtn" class="invis_btn" style="margin: auto 1%; height: 3em; width: 3em; display: none;" onclick="gotoRoomSettings()"><i class="bi bi-gear-fill" style="font-size: 1.5em;"></i></button>
@@ -176,7 +177,7 @@
                 <div style="width: 100%; height: 10%;">
                     <h1 style="margin-left: 5%; margin-top: 5%;"><b><i>Banned users</i></b></h1>
                 </div>
-                <div style="margin-top: 5%; display: flex; flex-direction: column; align-items: center; max-height: 50%;">
+                <div style="margin-top: 5%; margin-bottom: 5%; display: flex; flex-direction: column; align-items: center; max-height: 50%;">
                     <div id="RS_bannedUsers" class="list-group" style="width: 75%;"></div>
                 </div>
             </div>
@@ -256,7 +257,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" onclick="closeModal('closeSettings')">Close</button>
-                <button type="button" class="btn btn-primary" onclick="closeModal('closeSettings')">Discard</button>
+                <button type="button" class="btn btn-primary" onclick="discardSettings()">Discard</button>
             </div>
           </div>
         </div>

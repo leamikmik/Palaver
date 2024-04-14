@@ -125,6 +125,7 @@ function tryUsername(){
 }
 
 function changeSettings(){
+    console.log("WHY")
     if(!changedSettings) document.getElementById("changedSettings").style.display = "";
     changedSettings = true;
 }
@@ -155,6 +156,7 @@ function saveRoomName(el){
 
 function cancelRoomName(el){
     document.getElementById("roomSetName").value = current_room_name;
+    document.getElementById("roomSetName").disabled = true;
     el = el.parentElement;
     el.children[0].style.display = "";
     el.children[1].style.display = "none";
@@ -196,6 +198,12 @@ function saveSettings(){
             document.getElementById("saveSetPass").value = "";
         });
     }
+}
+
+function discardSettings(){
+    closeModal('closeSettings');
+    document.getElementById("changedSettings").style.display = "none";
+    changedSettings = false;
 }
 
 function savePfp(){
@@ -321,6 +329,7 @@ function generateRoomButton(room){
             room.classList.remove("active")
         }
         button.classList.add("active")
+        document.getElementById("freshSite").style.display = "none";
         socket.send(JSON.stringify({id: room["id"], type:"getRoom"}))
         if(changedSettings) closeSettings();
         closeRoomSettings();
@@ -482,6 +491,7 @@ function connectSocket(){
                     modals["createRoom"].hide();
                     modals["joinRoom"].hide();
                 }
+                document.getElementById("freshSite").innerText = parsedData["rooms"].length==0 ? "Join a room" : "Select a room";
                 if(current_room!="") document.getElementById(current_room).classList.add("active");
                 break;
             case "freshData":
@@ -497,6 +507,7 @@ function connectSocket(){
                         joinedRooms.appendChild(generateRoomButton(room));
                         if(room["id"]==current_room) document.getElementById("roomName").innerText= room["name"];
                     });
+                    document.getElementById("freshSite").innerText = parsedData["rooms"].length==0 ? "Join a room" : "Select a room";
                     if(current_room!="") document.getElementById(current_room).classList.add("active");
                     document.getElementById("roomSettingsBtn").style.display = parsedData["owner"] ? "" : "none";
                     document.getElementById("leaveBtn").style.display = parsedData["owner"] ? "none" : "";
@@ -616,6 +627,7 @@ function connectSocket(){
                 document.getElementById("roomName").innerText="";
                 document.getElementById("roomSettingsBtn").style.display = "none";
                 document.getElementById("leaveBtn").style.display = "none";
+                document.getElementById("freshSite").style.display = "";
                 break;
         }
         switch(parsedData['statusCode']){

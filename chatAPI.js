@@ -27,6 +27,7 @@ const { v4: uuidv4 } = require('uuid');
 const { fstat } = require('fs');
 //Encryption
 const crypto = require("crypto");
+const { LogExit } = require('concurrently');
 
 class Encrypter {
   constructor(encryptionKey) {
@@ -164,7 +165,10 @@ app.ws('/api/ws',(ws, req)=>{
                         if(err) console.log(err);
                         else{
                             PubSub.unsubscribe(subscriber);
-                            let temp = {rooms:[], type: "joinedRooms"};
+                            let temp = {
+                                rooms: [],
+                                type: "joinedRooms"
+                            };
                             subscriptions = [];
                             tokens = [];
                             for(let i=0; i<db_res.length; i++) {
@@ -237,7 +241,6 @@ app.ws('/api/ws',(ws, req)=>{
                     })
                     break;
                 case 'getRoom':{ // {id: roomid}
-                    //new Date(Date.now()).toISOString().slice(0, 19).replace('T', ' ')
                     db.query('select m.message_text as msg, m.msg_id as id, m.sent_at, u.username as sender, u.color, u.pfp, if(?=m.sender_id, "true", "false") as msgOwner from Message m' +
                     ' Join User u on m.sender_id=u.user_id' +
                     //' Join Room r on m.room_id=r.room_id' +
@@ -284,14 +287,20 @@ app.ws('/api/ws',(ws, req)=>{
                     ' Where ru.user_id = ? and ru.room_id = ?' +
                     ' Order by sent_at desc Limit ?, 50' , [res.id, res.id, parsedData['id'], parsedData["times"]*50], (err, db_res)=>{
                         if(err) console.log(err);
-                        else db.query("Select secure from Room where room_id = ?", [parsedData['id']], (err, temp1)=>{
+                        else db.query("Select secure, owner from Room where room_id = ?", [parsedData['id']], (err, temp1)=>{
                             if(err) console.log(err);
-                            let temp = {messages:[], room: parsedData['id'], type: "getMoreRoom"};
+                            let temp = {
+                                messages: [], 
+                                room: parsedData['id'], 
+                                type: "getMoreRoom",
+                                owner: temp1[0]["owner"]==res.id
+                            };                            
                             let enc
                             if(temp1[0]["secure"]) enc = new Encrypter(encryptSecret+parsedData['id']);
                             for(let i = 0; i<db_res.length; i++){
                                 temp['messages'][i] = db_res[i]["msg"] == null ? {newUser: true, sent_at: db_res[i]["sent_at"], sender: db_res[i]["sender"], color: db_res[i]["color"], pfp: db_res[i]["pfp"]} : db_res[i];
                                 temp['messages'][i]["msg"] = db_res[i]["msg"] != null ? (temp1[0]["secure"] ? enc.decrypt(temp['messages'][i]["msg"]) : temp['messages'][i]["msg"]).replaceAll("<", "&#60").replaceAll(">", "&#62") : temp['messages'][i]["msg"];
+                                if(temp["owner"]) temp['messages'][i]["msgOwner"] = "true";
                             }
                             ws.send(JSON.stringify(temp));
                         });
@@ -344,7 +353,11 @@ app.ws('/api/ws',(ws, req)=>{
                                         PubSub.unsubscribe(subscriber);
                                         subscriptions = [];
                                         tokens = [];
-                                        let temp = {newRoom: true, rooms:[], type: "joinedRooms"};
+                                        let temp = {
+                                            newRoom: true, 
+                                            rooms: [], 
+                                            type: "joinedRooms"
+                                        };
                                         for(let i=0; i<db_res.length; i++) {
                                             subscriptions[i] = db_res[i]['id'];
                                             tokens.push(PubSub.subscribe(db_res[i]['id'], subscriber));
@@ -389,11 +402,15 @@ app.ws('/api/ws',(ws, req)=>{
                             if(err) console.log(err);
                             else{
                                 ws.send(JSON.stringify({message: "Created room", status: 200}));
-                                db.query('select r.room_name as name, r.room_id as id, (Select count(m.msg_id) from Message m where m.room_id = id and (m.sent_at > (Select lastVisited from RoomUser ru where ru.user_id = ? and ru.room_id = id))) as newMsg from RoomUser ru2 Join Room r on r.room_id=ru2.room_id where ru2.user_id = ? order by newMsg desc, ru2.lastVisited desc', [res.id, res.id], (err, db_res)=>{
+                                db.query('select r.room_name as name, r.room_id as id, (Select count(m.msg_id) from Message m where m.room_id = id and (m.sent_at > (Select lastVisited from RoomUser ru where ru.user_id = ? and ru.room_id = id))) as newMsg from RoomUser ru2 Join Room r on r.room_id=ru2.room_id where ru2.user_id = ? and ru2.status=1 order by newMsg desc, ru2.lastVisited desc', [res.id, res.id], (err, db_res)=>{
                                     if(err) console.log(err);
                                     else{
                                         PubSub.unsubscribe(subscriber);
-                                        let temp = {rooms:[], type: "joinedRooms", newRoom: true};
+                                        let temp = {
+                                            type: "joinedRooms", 
+                                            rooms:[], 
+                                            newRoom: true
+                                        };
                                         subscriptions = [];
                                         tokens = [];
                                         for(let i=0; i<db_res.length; i++) {
@@ -430,7 +447,7 @@ app.ws('/api/ws',(ws, req)=>{
                                 ws.send(JSON.stringify({type: "roomDeleted"}));
                                 PubSub.publish(parsedData["room"], JSON.stringify({type: "roomDeleted"}));
                                 PubSub.unsubscribe(parsedData["room"]);
-                                db.query('select r.room_name as name, r.room_id as id, (Select count(m.msg_id) from Message m where m.room_id = id and (m.sent_at > (Select lastVisited from RoomUser ru where ru.user_id = ? and ru.room_id = id))) as newMsg from RoomUser ru2 Join Room r on r.room_id=ru2.room_id where ru2.user_id = ? order by newMsg desc, ru2.lastVisited desc', [res.id, res.id], (err, db_res)=>{
+                                db.query('select r.room_name as name, r.room_id as id, (Select count(m.msg_id) from Message m where m.room_id = id and (m.sent_at > (Select lastVisited from RoomUser ru where ru.user_id = ? and ru.room_id = id))) as newMsg from RoomUser ru2 Join Room r on r.room_id=ru2.room_id where ru2.user_id = ? and ru2.status=1 order by newMsg desc, ru2.lastVisited desc', [res.id, res.id], (err, db_res)=>{
                                     if(err) console.log(err);
                                     else{
                                         let temp = {rooms:[], type: "joinedRooms"};

@@ -1,3 +1,17 @@
+@font-face {
+    font-family: 'Lemon';
+    src: url('./fonts/Lemon/Lemon-Regular.eot');
+    src: local('Lemon Regular'), local('Lemon-Regular'),
+        url('./fonts/Lemon/Lemon-Regular.eot?#iefix') format('embedded-opentype'),
+        url('./fonts/Lemon/Lemon-Regular.woff2') format('woff2'),
+        url('./fonts/Lemon/Lemon-Regular.woff') format('woff'),
+        url('./fonts/Lemon/Lemon-Regular.ttf') format('truetype'),
+        url('./fonts/Lemon/Lemon-Regular.svg#Lemon-Regular') format('svg');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
 body{
     background-color: #212529;
     color: white;
@@ -6,15 +20,17 @@ html, body {
     margin: 0;
     height: 100%;
 }
+#sidebar{
+    background-color: #15191d;
+    width: 20%;
+    height: 100%;
+}
 #msgInput{
     width: 95%;
     height: 5%;
-    bottom: 2%;
+    margin-bottom: 1%;
     left: 2.5%;
-    position: absolute;
-    background-color: yellowgreen;
-    display: flex;
-    justify-content: space-between;
+    position: relative;
 }
 #activeUsers{
     width: 30%;
@@ -31,17 +47,46 @@ html, body {
     overflow-x: hidden;
     overflow-y: auto;
     width: 100%;
-    height: 85vh;
+    margin-bottom: 1%;
+    position: relative;
+    flex: 1;
 }
-#chat, #settings{
-    margin-left: 1%;
+.scrollOverflow, #joinedUsers, #joinedRooms, #settingsAlt, #roomSettingsAlt, #RS_joinedUsers{
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: auto;
 }
-
+#chat{
+    height: 100vh;
+    width: 80%;
+}
 #aU_text{
     overflow-y: auto;
     height: 80%;
     width: 100%;
     word-break: break-word;
+}
+.hidden{
+    display: none;
+}
+#logout:hover > .shown{
+    display: none;
+}
+#logout:hover > .hidden{
+    display: block;
+}
+.flex-no-stretch{
+    max-width: fit-content;
+}
+.pfp{
+    height: 2em; 
+    width: 2em; 
+    min-width: 2em;
+    margin: auto 0;
+    margin-left: 4px; 
+    margin-right: 4px;
+    border-radius: 5px;
 }
 .rowAlign{
     width: 100%;
@@ -51,14 +96,12 @@ html, body {
     margin-top: 10px;
     flex-direction: unset;
 }
-.msg{
-    width: 99%;
-    display: flex;
-}
 .msg text{
-    width: 80%;
-    word-break: break-word;
     margin-left: 4px;
+    word-break: break-word;
+}
+.msg b, text{
+    margin: auto 0;
 }
 .optionText{
     word-break: break-word;
@@ -94,3 +137,35 @@ html, body {
 .closebtn:hover {
   color: black;
 } 
+
+.overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+    opacity: 0;
+    transition: .5s ease;
+    background-color: #212529;
+    display: flex;
+    
+}
+
+.pfp_cont{
+    position: relative;
+}
+
+.pfp_cont:hover .overlay{
+    opacity: 0.8;
+}
+.invis_btn{
+    border: none; 
+    background: none;
+}
+
+
+p{
+    color: blue;
+    font-weight: bold;
+}
+
